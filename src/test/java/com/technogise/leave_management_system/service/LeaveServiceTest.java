@@ -16,6 +16,7 @@ import com.technogise.leave_management_system.enums.HolidayType;
 import com.technogise.leave_management_system.enums.UserRole;
 import com.technogise.leave_management_system.exception.HttpException;
 import com.technogise.leave_management_system.handler.LeaveIntegrationHandler;
+import com.technogise.leave_management_system.repository.HolidayRepository;
 import com.technogise.leave_management_system.repository.LeaveRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,9 @@ class LeaveServiceTest {
 
     @Mock
     private LeaveRepository leaveRepository;
+
+    @Mock
+    private HolidayRepository holidayRepository;
 
     @Mock
     private UserService userService;
