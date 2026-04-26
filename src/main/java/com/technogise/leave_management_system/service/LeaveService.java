@@ -250,6 +250,27 @@ public class LeaveService {
         return leave.getHoliday().getType().getDisplayName();
     }
 
+    private void applyTypeChange(Leave leave, UpdateLeaveRequest request, UUID userId) {
+        boolean requestHasHoliday = request.getHolidayId() != null;
+        boolean requestHasCategory = request.getLeaveCategoryId() != null;
+
+        if (!requestHasHoliday && !requestHasCategory) {
+            return;
+        }
+
+        if (requestHasHoliday) {
+            Holiday holiday = holidayService.getHolidayById(request.getHolidayId());
+            leave.setHoliday(holiday);
+            leave.setLeaveCategory(null);
+        }
+
+        if (requestHasCategory) {
+            leave.setLeaveCategory(
+                    leaveCategoryService.getLeaveCategoryById(request.getLeaveCategoryId()));
+            leave.setHoliday(null);
+        }
+    }
+
     @Transactional
     public List<CreateLeaveResponse> applyLeave(CreateLeaveRequest request, UUID userId) {
         boolean hasHoliday = request.getHolidayId() != null;
@@ -398,17 +419,28 @@ public class LeaveService {
         }
 
         DurationType oldDuration = leave.getDuration();
-        String oldCategoryName = leave.getLeaveCategory() != null ? leave.getLeaveCategory().getName() : "";
+        String oldCategoryName = leave.getLeaveCategory() != null
+                ? leave.getLeaveCategory().getName()
+                : null;
 
         LeaveCategory targetCategory = (request.getLeaveCategoryId() != null)
                 ? leaveCategoryService.getLeaveCategoryById(request.getLeaveCategoryId())
                 : leave.getLeaveCategory();
+
         DurationType targetDuration = (request.getDuration() != null)
                 ? request.getDuration()
                 : leave.getDuration();
 
         double requestedDays = (targetDuration == DurationType.FULL_DAY) ? 1.0 : 0.5;
-        validateNonAnnualBalanceSufficiency(targetCategory, requestedDays, userId, leave.getDate().getYear(), leaveId);
+
+        validateNonAnnualBalanceSufficiency(
+                targetCategory,
+                requestedDays,
+                userId,
+                leave.getDate().getYear(),
+                leaveId
+        );
+
         validateDurationForCategory(targetCategory, targetDuration);
 
         if (request.getDate() != null) {
@@ -422,23 +454,36 @@ public class LeaveService {
             leave.setDate(request.getDate());
         }
 
+        applyTypeChange(leave, request, userId);
+
         leave.setLeaveCategory(targetCategory);
         leave.setDuration(targetDuration);
+
         Optional.ofNullable(request.getStartTime()).ifPresent(leave::setStartTime);
         Optional.ofNullable(request.getDescription()).ifPresent(leave::setDescription);
 
         Leave savedLeave = leaveRepository.save(leave);
 
-        if (oldCategoryName.equalsIgnoreCase(LeaveConstants.ANNUAL_LEAVE)
-                || (targetCategory != null && targetCategory.getName().equalsIgnoreCase(LeaveConstants.ANNUAL_LEAVE))) {
+        boolean typeChanged = request.getHolidayId() != null || request.getLeaveCategoryId() != null;
+        boolean durationChanged = request.getDuration() != null;
+
+        if (typeChanged || durationChanged ||
+                (oldCategoryName != null && oldCategoryName.equalsIgnoreCase(LeaveConstants.ANNUAL_LEAVE)) ||
+                (savedLeave.getLeaveCategory() != null &&
+                        savedLeave.getLeaveCategory().getName().equalsIgnoreCase(LeaveConstants.ANNUAL_LEAVE))) {
+
+            String newCategoryName = savedLeave.getLeaveCategory() != null
+                    ? savedLeave.getLeaveCategory().getName()
+                    : null;
 
             annualLeaveService.syncOnLeaveUpdated(
-                    leave.getUser(),
+                    savedLeave.getUser(),
                     oldCategoryName,
-                    savedLeave.getLeaveCategory().getName(),
+                    newCategoryName,
                     oldDuration,
                     savedLeave.getDuration(),
-                    savedLeave.getDate().getYear());
+                    savedLeave.getDate().getYear()
+            );
         }
 
         leaveIntegrationHandler.handleLeaveUpdate(savedLeave);
@@ -556,6 +601,7 @@ public class LeaveService {
         if (leave.getLeaveCategory() != null && leave.getLeaveCategory().getName().equals(LeaveConstants.ANNUAL_LEAVE)) {
             annualLeaveService.syncOnLeaveDeleted(leave.getUser(), leave.getDuration(), leave.getDate().getYear());
         }
+
         leaveIntegrationHandler.handleLeaveDelete(leave);
     }
 }
