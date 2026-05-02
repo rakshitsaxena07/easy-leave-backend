@@ -142,9 +142,7 @@ class LeaveServiceTest {
         holiday.setId(UUID.randomUUID());
         holiday.setName("Diwali");
         holiday.setType(HolidayType.OPTIONAL);
-        holiday.setDate(LocalDate.of(2026, 11, 9));
-        holiday.setCreatedAt(LocalDateTime.of(2026, Month.JANUARY, 1, 0, 0, 0));
-        holiday.setUpdatedAt(LocalDateTime.of(2026, Month.JANUARY, 1, 0, 0, 0));
+        holiday.setDate(LocalDate.now().plusDays(5));
         return holiday;
     }
 
@@ -1949,33 +1947,43 @@ class LeaveServiceTest {
         ReflectionTestUtils.setField(leaveService, "maxOptionalHolidayDays", 2);
 
         User user = createValidUser();
-        Holiday holiday = createOptionalHoliday();
-        LocalDate mockDate = LocalDate.of(2026, 4,27);
+
+        LocalDate existingDate = nextWeekday();
 
         Leave leave = new Leave();
         leave.setId(UUID.randomUUID());
         leave.setUser(user);
-        leave.setDate(mockDate);
+        leave.setDate(existingDate);
         leave.setLeaveCategory(createValidLeaveCategory());
         leave.setDuration(DurationType.FULL_DAY);
-        leave.setStartTime(LocalTime.of(10, 0));
-        leave.setDescription("Regular leave");
+        leave.setStartTime(LocalTime.of(9, 0));
+        leave.setDescription("Test Holiday");
+
+        LocalDate newDate = nextWeekday().plusDays(1);
+
+        Holiday holiday = createOptionalHoliday();
+        holiday.setDate(newDate);
 
         UpdateLeaveRequest request = new UpdateLeaveRequest();
-        request.setHolidayId(holidayId);
+        request.setDate(newDate);
+        request.setHolidayId(holiday.getId());
 
-        when(userService.getUserByUserId(userId)).thenReturn(user);
-        when(leaveRepository.countByUserIdAndHolidayIsNotNullAndDateBetweenAndDeletedAtIsNull(
-                eq(userId), any(), any())).thenReturn(0L);
         when(leaveRepository.findById(leave.getId())).thenReturn(Optional.of(leave));
-        when(holidayService.getHolidayById(holidayId)).thenReturn(holiday);
-        when(leaveRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(holidayService.getHolidayById(holiday.getId())).thenReturn(holiday);
+        when(userService.getUserByUserId(user.getId())).thenReturn(user);
+        when(leaveRepository.countByUserIdAndHolidayIsNotNullAndDateBetweenAndDeletedAtIsNull(any(), any(), any()))
+                .thenReturn(0L);
+        when(leaveRepository.existsByUserIdAndDateAndIdNotAndDeletedAtIsNull(user.getId(), newDate, leave.getId()))
+                .thenReturn(false);
+        when(leaveRepository.save(any(Leave.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        UpdateLeaveResponse response = leaveService.updateLeave(leave.getId(), request, userId);
+        UpdateLeaveResponse response = leaveService.updateLeave(leave.getId(), request, user.getId());
 
-        assertEquals("Optional Holiday", response.getType());
-        assertNull(leave.getLeaveCategory());
-        assertEquals(holiday, leave.getHoliday());
+        assertNotNull(response);
+        assertEquals(newDate, response.getDate());
+        assertEquals(holiday.getType().getDisplayName(), response.getType());
+        assertEquals(DurationType.FULL_DAY, response.getDuration());
+        assertEquals("Test Holiday", response.getDescription());
     }
 
     @Test
