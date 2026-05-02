@@ -23,6 +23,7 @@ import java.net.http.HttpResponse;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @Slf4j
@@ -156,7 +157,57 @@ public class GoogleCalendarService implements LeaveIntegrationService {
         addLeaveEvent(user, leave, title, description);
     }
 
+    @Async
     @Override
     public void deleteLeave(Leave leave) {
+        LeaveIntegrationEvent integrationEvent = new LeaveIntegrationEvent();
+        integrationEvent.setLeave(leave);
+        integrationEvent.setPlatform(PlatformType.GOOGLE_CALENDAR);
+        integrationEvent.setAttempts(1);
+        integrationEvent.setLastAttemptAt(LocalDateTime.now());
+        integrationEvent.setOperationType(IntegrationOperationType.DELETE);
+
+        try {
+            Optional<LeaveIntegrationEvent> calendarEvent = leaveIntegrationEventRepository
+                    .findByLeaveIdAndPlatformAndDeletedAtIsNull(leave.getId(), PlatformType.GOOGLE_CALENDAR);
+
+            if (calendarEvent.isEmpty()) {
+                log.warn("No Google Calendar entry found for leave {}", leave.getId());
+                integrationEvent.setStatus(IntegrationStatus.FAILED);
+                integrationEvent.setErrorMessage("No Google Calendar entry found for leave " + leave.getId());
+                leaveIntegrationEventRepository.save(integrationEvent);
+                return;
+            }
+
+            String externalEventId = calendarEvent.get().getExternalEventId();
+            String encodedCalendarId = java.net.URLEncoder.encode(calendarId, "UTF-8");
+            String url = calendarApiBase + encodedCalendarId + "/events/" + externalEventId;
+
+            User user = leave.getUser();
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Authorization", "Bearer " + getValidToken(user))
+                    .DELETE()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 200 || response.statusCode() == 204 || response.statusCode() == 404) {
+                integrationEvent.setStatus(IntegrationStatus.SUCCESS);
+                integrationEvent.setExternalEventId(externalEventId);
+                log.info("Successfully deleted Google Calendar event {} for leave {}", externalEventId, leave.getId());
+            } else {
+                integrationEvent.setStatus(IntegrationStatus.FAILED);
+                integrationEvent.setErrorMessage("Google Calendar API error: " + response.statusCode());
+                log.error("Failed to delete Google Calendar event for leave {}", leave.getId());
+            }
+
+        } catch (Exception e) {
+            integrationEvent.setStatus(IntegrationStatus.FAILED);
+            integrationEvent.setErrorMessage(e.getMessage());
+            log.error("Exception while deleting Google Calendar event for leave {}: {}", leave.getId(), e.getMessage());
+        }
+        leaveIntegrationEventRepository.save(integrationEvent);
     }
 }
