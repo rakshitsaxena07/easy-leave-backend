@@ -1,5 +1,7 @@
 package com.technogise.leave_management_system.entity;
 
+import com.technogise.leave_management_system.enums.IntegrationOperationType;
+import com.technogise.leave_management_system.enums.IntegrationStatus;
 import com.technogise.leave_management_system.enums.PlatformType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
