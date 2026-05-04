@@ -22,6 +22,7 @@ import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -351,5 +352,44 @@ class GoogleCalendarServiceTest {
 
         verify(httpClient, never()).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
         verify(leaveIntegrationEventRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldUpdateSyncEventSuccessfully() throws Exception {
+        LeaveIntegrationEvent existingEvent = new LeaveIntegrationEvent();
+        existingEvent.setExternalEventId("event-existing-123");
+
+        when(leaveIntegrationEventRepository
+                .findTopByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                        leave.getId(), PlatformType.GOOGLE_CALENDAR, IntegrationStatus.SUCCESS))
+                .thenReturn(Optional.of(existingEvent));
+
+        when(httpResponse.statusCode()).thenReturn(200);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(httpResponse);
+
+        googleCalendarService.updateLeave(leave);
+
+        verify(leaveIntegrationEventRepository).save(argThat(event ->
+                event.getExternalEventId().equals("event-existing-123")
+                        && event.getPlatform().equals(PlatformType.GOOGLE_CALENDAR)
+        ));
+    }
+
+    @Test
+    void shouldThrowWhenGoogleCalendarApiFailsDuringUpdate() throws Exception {
+        LeaveIntegrationEvent existingEvent = new LeaveIntegrationEvent();
+        existingEvent.setExternalEventId("event-existing-123");
+
+        when(leaveIntegrationEventRepository
+                .findTopByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                        leave.getId(), PlatformType.GOOGLE_CALENDAR, IntegrationStatus.SUCCESS))
+                .thenReturn(Optional.of(existingEvent));
+
+        when(httpResponse.statusCode()).thenReturn(500);
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(httpResponse);
+
+        assertThrows(RuntimeException.class, () -> googleCalendarService.updateLeave(leave));
     }
 }

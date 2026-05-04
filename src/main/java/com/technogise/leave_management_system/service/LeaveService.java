@@ -418,6 +418,7 @@ public class LeaveService {
         Optional.ofNullable(request.getDescription()).ifPresent(leave::setDescription);
 
         Leave savedLeave = leaveRepository.save(leave);
+        leaveIntegrationHandler.handleLeaveUpdate(leave);
 
         if (oldCategoryName.equalsIgnoreCase(LeaveConstants.ANNUAL_LEAVE)
                 || (targetCategory != null && targetCategory.getName().equalsIgnoreCase(LeaveConstants.ANNUAL_LEAVE))) {
