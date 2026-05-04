@@ -106,6 +106,9 @@ public class LeaveService {
     }
 
     private void validateDurationForCategory(LeaveCategory category, DurationType duration) {
+        if (category == null) {
+            return;
+        }
         if (!category.getName().equals(LeaveConstants.ANNUAL_LEAVE) && duration == DurationType.HALF_DAY) {
             throw new HttpException(HttpStatus.BAD_REQUEST, category.getName() + " can only be applied as a full day");
         }

@@ -1268,7 +1268,7 @@ class LeaveServiceTest {
         takenLeave2.setDate(weekday.minusDays(1));
 
         CreateLeaveRequest request = new CreateLeaveRequest(
-                leaveCategoryId, List.of(weekday), DurationType.FULL_DAY,
+                leaveCategoryId, null, List.of(weekday), DurationType.FULL_DAY,
                 LocalTime.of(9, 0), "Feeling sick");
 
         when(userService.getUserByUserId(userId)).thenReturn(createValidUser());
@@ -1296,6 +1296,7 @@ class LeaveServiceTest {
         LocalDate date = nextWeekday();
         CreateLeaveRequest request = new CreateLeaveRequest(
                 leaveCategoryId,
+                null,
                 List.of(date),
                 DurationType.HALF_DAY,
                 LocalTime.of(9, 0),
@@ -1326,7 +1327,7 @@ class LeaveServiceTest {
         LocalDate weekday = nextWeekday();
 
         CreateLeaveRequest request = new CreateLeaveRequest(
-                leaveCategoryId, List.of(weekday), DurationType.HALF_DAY,
+                leaveCategoryId, null, List.of(weekday), DurationType.HALF_DAY,
                 LocalTime.of(9, 0), "Should fail due to half day rule");
 
         when(userService.getUserByUserId(userId)).thenReturn(createValidUser());
@@ -1654,6 +1655,11 @@ class LeaveServiceTest {
         fixedHoliday.setDate(holidayDate);
         fixedHoliday.setType(HolidayType.FIXED);
 
+        LeaveCategory category = new LeaveCategory();
+        category.setId(leaveCategoryId);
+        category.setName(LeaveConstants.ANNUAL_LEAVE);
+        when(leaveCategoryService.getLeaveCategoryById(leaveCategoryId)).thenReturn(category);
+
         CreateLeaveRequest request = new CreateLeaveRequest();
         request.setLeaveCategoryId(leaveCategoryId);
         request.setDates(List.of(holidayDate));
@@ -1668,6 +1674,7 @@ class LeaveServiceTest {
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         assertEquals("Cannot apply leave on weekends or fixed holidays", ex.getMessage());
     }
+
     @Test
     void shouldExcludeLeaveIdWhenComputingTakenDays() {
         UUID categoryId = UUID.randomUUID();
