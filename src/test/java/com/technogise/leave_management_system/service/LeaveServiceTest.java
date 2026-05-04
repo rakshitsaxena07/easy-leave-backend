@@ -2124,4 +2124,50 @@ class LeaveServiceTest {
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         assertEquals("Cannot update leave to a fixed holiday date", ex.getMessage());
     }
+
+    @Test
+    void shouldReturnAllLeavesWithHolidayIdWhenHolidayIsAssociatedWithLeave() {
+        User user = createValidUser();
+        Holiday holiday = createOptionalHoliday();
+
+        Leave leave = new Leave();
+        leave.setId(UUID.randomUUID());
+        leave.setUser(user);
+        leave.setDate(LocalDate.now().plusDays(1));
+        leave.setHoliday(holiday);
+        leave.setDuration(DurationType.FULL_DAY);
+        leave.setStartTime(LocalTime.of(10, 0));
+        leave.setUpdatedAt(LocalDateTime.now());
+
+        when(userService.getUserByUserId(user.getId())).thenReturn(user);
+        when(leaveRepository.findAllByUserIdAndDeletedAtNull(user.getId(), Sort.by(Sort.Direction.DESC, "date")))
+                .thenReturn(List.of(leave));
+
+        List<LeaveResponse> result = leaveService.getAllLeaves(user.getId(), "self", null, null, null);
+
+        assertEquals(1, result.size());
+        assertEquals(holiday.getId(), result.getFirst().holidayId);
+    }
+
+    @Test
+    void shouldReturnOptionalHolidayLeaveByIdWhenHolidayIsAssociatedWithLeave() {
+        User user = createValidUser();
+        Holiday holiday = createOptionalHoliday();
+
+        Leave leave = new Leave();
+        leave.setId(UUID.randomUUID());
+        leave.setUser(user);
+        leave.setDate(LocalDate.now().plusDays(1));
+        leave.setHoliday(holiday);
+        leave.setDuration(DurationType.FULL_DAY);
+        leave.setStartTime(LocalTime.of(10, 0));
+        leave.setUpdatedAt(LocalDateTime.now());
+
+        when(userService.getUserByUserId(user.getId())).thenReturn(user);
+        when(leaveRepository.findById(leave.getId())).thenReturn(Optional.of(leave));
+
+        LeaveResponse response = leaveService.getLeaveById(leave.getId(), user.getId());
+
+        assertEquals(holiday.getId(), response.holidayId);
+    }
 }
