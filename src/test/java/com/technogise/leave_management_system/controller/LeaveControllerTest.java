@@ -182,7 +182,7 @@ public class LeaveControllerTest {
                 employeeLeave.getStartTime(),
                 employeeLeave.getUpdatedAt(),
                 employeeLeave.getDescription(),
-                employeeLeave.getHoliday().getId()
+                null
         );
 
         Page<LeaveResponse> page = new PageImpl<>(List.of(response));
@@ -216,7 +216,7 @@ public class LeaveControllerTest {
                 managerLeave.getStartTime(),
                 managerLeave.getUpdatedAt(),
                 managerLeave.getDescription(),
-                managerLeave.getHoliday().getId()
+                null
         );
 
         Page<LeaveResponse> page = new PageImpl<>(List.of(response));
@@ -271,7 +271,7 @@ public class LeaveControllerTest {
                 managerLeave.getStartTime(),
                 managerLeave.getUpdatedAt(),
                 managerLeave.getDescription(),
-                managerLeave.getHoliday().getId()
+                null
         );
 
         LeaveResponse response2 = new LeaveResponse(
@@ -283,7 +283,7 @@ public class LeaveControllerTest {
                 employeeLeave.getStartTime(),
                 employeeLeave.getUpdatedAt(),
                 employeeLeave.getDescription(),
-                managerLeave.getHoliday().getId()
+                null
         );
         Page<LeaveResponse> page = new PageImpl<>(List.of(response1, response2));
 
@@ -319,7 +319,7 @@ public class LeaveControllerTest {
                 managerLeave.getStartTime(),
                 managerLeave.getUpdatedAt(),
                 managerLeave.getDescription(),
-                managerLeave.getHoliday().getId()
+                null
                 );
         LeaveResponse response2 = new LeaveResponse(
                 employeeLeave.getId(),
@@ -408,7 +408,7 @@ public class LeaveControllerTest {
                 employeeLeave.getStartTime(),
                 employeeLeave.getUpdatedAt(),
                 employeeLeave.getDescription(),
-                employeeLeave.getHoliday().getId()
+                null
         );
 
         Page<LeaveResponse> page = new PageImpl<>(List.of(response));
@@ -474,7 +474,7 @@ public class LeaveControllerTest {
                 employeeLeave.getStartTime(),
                 employeeLeave.getUpdatedAt(),
                 employeeLeave.getDescription(),
-                employeeLeave.getHoliday().getId()
+                null
         );
 
         when(leaveService.getLeaveById(employeeLeave.getId(), employee.getId()))
