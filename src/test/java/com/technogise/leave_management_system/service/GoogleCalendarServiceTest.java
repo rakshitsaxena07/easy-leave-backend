@@ -392,4 +392,19 @@ class GoogleCalendarServiceTest {
 
         assertThrows(RuntimeException.class, () -> googleCalendarService.updateLeave(leave));
     }
+
+    @Test
+    void shouldSetEventAsFailedWhenNoExistingEventFound() {
+        when(leaveIntegrationEventRepository
+                .findTopByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                        leave.getId(), PlatformType.GOOGLE_CALENDAR, IntegrationStatus.SUCCESS))
+                .thenReturn(Optional.empty());
+
+        googleCalendarService.updateLeave(leave);
+
+        verify(leaveIntegrationEventRepository).save(argThat(event ->
+                event.getStatus().equals(IntegrationStatus.FAILED)
+                        && event.getErrorMessage().contains(String.valueOf(leave.getId()))
+        ));
+    }
 }
