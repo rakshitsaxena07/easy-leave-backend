@@ -463,7 +463,7 @@ public class LeaveService {
             throw new HttpException(HttpStatus.BAD_REQUEST, "Cannot cancel a past leave");
         }
     }
-
+    @Transactional
     public void deleteLeave(UUID leaveId, UUID userId) {
         Leave leave = leaveRepository.findById(leaveId)
                 .orElseThrow(() -> new HttpException(HttpStatus.NOT_FOUND, "Leave not found"));
@@ -478,7 +478,6 @@ public class LeaveService {
         if (leave.getLeaveCategory() != null && leave.getLeaveCategory().getName().equals(LeaveConstants.ANNUAL_LEAVE)) {
             annualLeaveService.syncOnLeaveDeleted(leave.getUser(), leave.getDuration(), leave.getDate().getYear());
         }
-        leave.getUser().getName();
         leaveIntegrationHandler.handleLeaveDelete(leave);
     }
 }
