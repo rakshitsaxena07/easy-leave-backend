@@ -145,29 +145,30 @@ class HolidayServiceTest {
 
     @Test
     void shouldReturnHolidaysSortedByDateAscending() {
-        // Given
+        int currentYear = LocalDate.now().getYear();
+
         Holiday laterHoliday = Holiday.builder()
                 .id(UUID.randomUUID())
                 .name("Christmas")
-                .date(LocalDate.of(2026, 12, 25))
+                .date(LocalDate.of(currentYear, 12, 25))
                 .build();
         Holiday earlierHoliday = Holiday.builder()
                 .id(UUID.randomUUID())
                 .name("New Year")
-                .date(LocalDate.of(2026, 1, 1))
+                .date(LocalDate.of(currentYear, 1, 1))
                 .build();
 
         when(holidayRepository.findAllByOrderByDateAsc())
                 .thenReturn(List.of(earlierHoliday, laterHoliday));
 
-        // When
         List<HolidayResponse> responses = holidayService.getHolidays(null);
 
-        // Then
         assertEquals(2, responses.size());
         assertEquals("New Year", responses.get(0).getName());
         assertEquals("Christmas", responses.get(1).getName());
+
         assertTrue(responses.get(0).getDate().isBefore(responses.get(1).getDate()));
+        assertEquals(currentYear, responses.get(0).getDate().getYear());
     }
 
     @Test
