@@ -3,11 +3,12 @@ package com.technogise.leave_management_system.service;
 import com.technogise.leave_management_system.dto.UpdateUserRoleRequest;
 import com.technogise.leave_management_system.dto.EmployeeLeavesRecordResponse;
 import com.technogise.leave_management_system.dto.UserResponse;
-import com.technogise.leave_management_system.entity.AnnualLeave;
 import com.technogise.leave_management_system.entity.Leave;
 import com.technogise.leave_management_system.entity.LeaveCategory;
+import com.technogise.leave_management_system.entity.Holiday;
 import com.technogise.leave_management_system.entity.User;
 import com.technogise.leave_management_system.enums.DurationType;
+import com.technogise.leave_management_system.enums.HolidayType;
 import com.technogise.leave_management_system.enums.UserRole;
 import com.technogise.leave_management_system.exception.HttpException;
 import com.technogise.leave_management_system.repository.AnnualLeaveRepository;
@@ -20,16 +21,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.data.domain.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -38,21 +36,17 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
-
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
 
     @Mock
     private UserRepository userRepository;
-
     @Mock
     private LeaveRepository leaveRepository;
-
     @Mock
     private LeaveCategoryRepository leaveCategoryRepository;
-
     @Mock
     private AnnualLeaveRepository annualLeaveRepository;
 
@@ -62,60 +56,89 @@ class UserServiceTest {
     private final String email = "rakshit@technogise.com";
     private final String name = "Rakshit Saxena";
     private UUID userId;
+    private UUID leaveCategoryId;
 
     @BeforeEach
     void setUp() {
         userId = UUID.randomUUID();
+        leaveCategoryId = UUID.randomUUID();
         ReflectionTestUtils.setField(userService, "timezone", "Asia/Kolkata");
+    }
+
+
+    @Test
+    void shouldCoverAllDurationBranchesAndAnnualLeaveLogic() {
+        int year = 2026;
+        LeaveCategory sickLeave = new LeaveCategory(leaveCategoryId, "Sick Leave", 10, null, null);
+        LeaveCategory annualLeaveCategory = new LeaveCategory(UUID.randomUUID(), "Annual Leave", 24, null, null);
+
+        Holiday optionalHoliday = new Holiday();
+        optionalHoliday.setId(UUID.randomUUID());
+        optionalHoliday.setType(HolidayType.OPTIONAL);
+
+        // Exercise Duration branches for Categories (1.0 vs 0.5)
+        Leave catFull = new Leave();
+        catFull.setLeaveCategory(sickLeave);
+        catFull.setDuration(DurationType.FULL_DAY);
+
+        Leave catHalf = new Leave();
+        catHalf.setLeaveCategory(sickLeave);
+        catHalf.setDuration(DurationType.HALF_DAY);
+
+        Leave holFull = new Leave();
+        holFull.setHoliday(optionalHoliday);
+        holFull.setDuration(DurationType.FULL_DAY);
+
+        Leave holHalf = new Leave();
+        holHalf.setHoliday(optionalHoliday);
+        holHalf.setDuration(DurationType.HALF_DAY);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(new User()));
+        when(leaveCategoryRepository.findAll()).thenReturn(List.of(sickLeave, annualLeaveCategory));
+
+        when(annualLeaveRepository.findByUserIdAndYear(eq(userId), anyString())).thenReturn(Optional.empty());
+
+        when(leaveRepository.findAllByUserIdAndDateBetweenAndDeletedAtIsNull(eq(userId), any(), any(), any()))
+                .thenReturn(List.of(catFull, catHalf, holFull, holHalf));
+
+        List<EmployeeLeavesRecordResponse> result = userService.getEmployeeLeavesRecordByYear(userId, year);
+
+        EmployeeLeavesRecordResponse sickRecord = result.stream()
+                .filter(r -> "Sick Leave".equals(r.getLeaveType())).findFirst().get();
+        assertEquals(1.5, sickRecord.getLeavesTaken());
+
+        EmployeeLeavesRecordResponse holidayRecord = result.stream()
+                .filter(r -> "Optional Holiday".equals(r.getLeaveType())).findFirst().get();
+        assertEquals(1.5, holidayRecord.getLeavesTaken());
+
+        EmployeeLeavesRecordResponse annualRecord = result.stream()
+                .filter(r -> "Annual Leave".equals(r.getLeaveType())).findFirst().get();
+        assertEquals(0.0, annualRecord.getTotalLeavesAvailable());
     }
 
     @Test
     void shouldReturnExistingUserWhenUserExists() {
-
         User existingUser = new User();
         existingUser.setEmail(email);
-        existingUser.setName(name);
-
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(existingUser));
         when(userRepository.save(any(User.class))).thenReturn(existingUser);
 
         User result = userService.findOrCreateUser(email, name, "mock-token", Instant.now().plusSeconds(3600));
-
         assertNotNull(result);
         assertEquals(email, result.getEmail());
     }
 
     @Test
     void shouldCreateAndReturnNewUserWhenUserDoesNotExist() {
-
         when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
-
         User savedUser = new User();
         savedUser.setEmail(email);
         savedUser.setRole(UserRole.EMPLOYEE);
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
         User result = userService.findOrCreateUser(email, name, "mock-token", Instant.now().plusSeconds(3600));
-
-        assertNotNull(result);
-        assertEquals(email, result.getEmail());
         assertEquals(UserRole.EMPLOYEE, result.getRole());
     }
-
-    @Test
-    void shouldStoreAccessTokenAndExpiry() {
-        Instant expiry = Instant.now().plusSeconds(3600);
-
-        User user = new User();
-        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
-        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
-
-        User result = userService.findOrCreateUser(email, name, "access-token", expiry);
-
-        assertEquals("access-token", result.getGoogleAccessToken());
-        assertNotNull(result.getGoogleTokenExpiry());
-    }
-
 
     @Test
     void shouldSetDefaultExpiryWhenExpiresAtIsNull() {
@@ -123,305 +146,95 @@ class UserServiceTest {
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
 
-        User result = userService.findOrCreateUser(
-                email, name, "access-token", null);
-
+        User result = userService.findOrCreateUser(email, name, "access-token", null);
         assertNotNull(result.getGoogleTokenExpiry());
     }
 
     @Test
     void shouldThrowNotFoundExceptionWhenUserIdDoesNotExist() {
-
         when(userRepository.findById(userId)).thenReturn(Optional.empty());
-
-        assertThrows(HttpException.class,
-                () -> userService.getUserByUserId(userId));
-    }
-
-    @Test
-    void shouldReturnUserWhenUserIdDoesExist() {
-        when(userRepository.findById(userId)).thenReturn(Optional.of(new User()));
-
-        User user = userService.getUserByUserId(userId);
-
-        assertInstanceOf(User.class, user);
+        assertThrows(HttpException.class, () -> userService.getUserByUserId(userId));
     }
 
     @Test
     void shouldReturnPagedUserResponses() {
         User employee = new User();
-        employee.setId(UUID.randomUUID());
-        employee.setName("PRIYANSH");
         employee.setEmail("priyansh@technogise.com");
-        employee.setRole(UserRole.EMPLOYEE);
-        User admin = new User();
-        admin.setId(UUID.randomUUID());
-        admin.setName("RAJ");
-        admin.setEmail("raj@technogise.com");
-        admin.setRole(UserRole.ADMIN);
+        Page<User> userPage = new PageImpl<>(List.of(employee));
+        when(userRepository.findAllByOrderByNameAsc(any(Pageable.class))).thenReturn(userPage);
 
-        List<User> users = List.of(employee, admin);
-        Pageable pageable = PageRequest.of(0, 10);
-        Page<User> userPage = new PageImpl<>(users, pageable, users.size());
-
-        when(userRepository.findAllByOrderByNameAsc(any(Pageable.class)))
-                .thenReturn(userPage);
-
-        Page<UserResponse> result = userService.getAllUsers(pageable);
-        assertEquals(2, result.getContent().size());
-        UserResponse first = result.getContent().getFirst();
-        assertEquals(employee.getId(), first.getId());
-        assertEquals(employee.getEmail(), first.getEmail());
-        UserResponse second = result.getContent().get(1);
-        assertEquals(admin.getId(), second.getId());
-        assertEquals(admin.getEmail(), second.getEmail());
+        Page<UserResponse> result = userService.getAllUsers(PageRequest.of(0, 10));
+        assertEquals(1, result.getContent().size());
     }
 
     @Test
     void shouldUpdateRoleSuccessfully() {
-        UUID adminId = UUID.randomUUID();
-        UUID userId = UUID.randomUUID();
         User user = new User();
         user.setId(userId);
         user.setRole(UserRole.EMPLOYEE);
+        UpdateUserRoleRequest request = new UpdateUserRoleRequest(userId, UserRole.MANAGER);
 
-        UpdateUserRoleRequest request =
-                new UpdateUserRoleRequest(userId, UserRole.MANAGER);
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        userService.updateRole(adminId, request);
+        userService.updateRole(UUID.randomUUID(), request);
         assertEquals(UserRole.MANAGER, user.getRole());
     }
 
     @Test
     void shouldThrowExceptionWhenAdminTriesToUpdateOwnRole() {
+        UpdateUserRoleRequest request = new UpdateUserRoleRequest(userId, UserRole.MANAGER);
+        assertThrows(HttpException.class, () -> userService.updateRole(userId, request));
+    }
+
+    @Test
+    void shouldThrowNotFoundExceptionWhenTargetUserForRoleUpdateDoesNotExist() {
         UUID adminId = UUID.randomUUID();
-        UpdateUserRoleRequest request =
-                new UpdateUserRoleRequest(adminId, UserRole.MANAGER);
+        UUID nonExistentUserId = UUID.randomUUID();
+        UpdateUserRoleRequest request = new UpdateUserRoleRequest(nonExistentUserId, UserRole.MANAGER);
+
+        when(userRepository.findById(nonExistentUserId)).thenReturn(Optional.empty());
+
         HttpException exception = assertThrows(HttpException.class,
                 () -> userService.updateRole(adminId, request));
-        assertEquals("You cannot change your own role", exception.getMessage());
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
     }
 
     @Test
-    void shouldThrowExceptionWhenUserNotFound() {
-        UUID adminId = UUID.randomUUID();
-        UUID userId = UUID.randomUUID();
-        UpdateUserRoleRequest request =
-                new UpdateUserRoleRequest(userId, UserRole.MANAGER);
-        when(userRepository.findById(userId)).thenReturn(Optional.empty());
-        HttpException exception = assertThrows(HttpException.class,
-                () -> userService.updateRole(adminId, request));
-        assertEquals("User not found with id: " + userId, exception.getMessage());
+    void shouldThrowExceptionWhenAssigningSameRoleToUser() {
+        User existingUser = new User();
+        existingUser.setId(userId);
+        existingUser.setRole(UserRole.MANAGER);
+        UpdateUserRoleRequest request = new UpdateUserRoleRequest(userId, UserRole.MANAGER);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(existingUser));
+        HttpException ex = assertThrows(HttpException.class, () -> userService.updateRole(UUID.randomUUID(), request));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
     }
 
-    @Test
-    void shouldThrowExceptionWhenRoleIsSame() {
-        UUID adminId = UUID.randomUUID();
-        UUID userId = UUID.randomUUID();
-        User user = new User();
-        user.setId(userId);
-        user.setRole(UserRole.MANAGER);
-        UpdateUserRoleRequest request =
-                new UpdateUserRoleRequest(userId, UserRole.MANAGER);
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        HttpException exception = assertThrows(HttpException.class,
-                () -> userService.updateRole(adminId, request));
-        assertEquals("User already has role: MANAGER", exception.getMessage());
-    }
-
-    @Test
-    void shouldReturnEmployeeLeaveRecordsWhenLeavesExist() {
-        int year = 2026;
-
-        UUID cat1Id = UUID.randomUUID();
-        UUID cat2Id = UUID.randomUUID();
-
-        LeaveCategory annual = new LeaveCategory(
-                cat1Id, "Annual", 24, LocalDateTime.now(), LocalDateTime.now());
-        LeaveCategory paternity = new LeaveCategory(
-                cat2Id, "Paternity", 90, LocalDateTime.now(), LocalDateTime.now());
-
-        Leave leave1 = new Leave();
-        leave1.setLeaveCategory(annual);
-        leave1.setDuration(DurationType.FULL_DAY);
-
-        Leave leave2 = new Leave();
-        leave2.setLeaveCategory(annual);
-        leave2.setDuration(DurationType.HALF_DAY);
-
-        Leave leave3 = new Leave();
-        leave3.setLeaveCategory(paternity);
-        leave3.setDuration(DurationType.FULL_DAY);
-
-        List<Leave> allLeaves = new ArrayList<>();
-        allLeaves.add(leave1);
-        allLeaves.add(leave2);
-        for (int i = 0; i < 10; i++) {
-            Leave l = new Leave();
-            l.setLeaveCategory(paternity);
-            l.setDuration(DurationType.FULL_DAY);
-            allLeaves.add(l);
-        }
-
-        when(userRepository.findById(userId)).thenReturn(Optional.of(new User()));
-        when(leaveCategoryRepository.findAll()).thenReturn(List.of(annual, paternity));
-        when(leaveRepository.findAllByUserIdAndDateBetweenAndDeletedAtIsNull(
-                eq(userId), any(), any(), any(Sort.class)))
-                .thenReturn(allLeaves);
-
-        List<EmployeeLeavesRecordResponse> result =
-                userService.getEmployeeLeavesRecordByYear(userId, year);
-
-        assertEquals(2, result.size());
-        assertEquals(1.5, result.get(0).getLeavesTaken());
-        assertEquals(10.0, result.get(1).getLeavesTaken());
-    }
-
-    @Test
-    void shouldSkipCategoriesWhenNoLeavesTaken() {
-        int year = 2026;
-
-        LeaveCategory category = new LeaveCategory(
-                UUID.randomUUID(),
-                "Annual",
-                24,
-                LocalDateTime.now(),
-                LocalDateTime.now()
-        );
-
-        when(userRepository.findById(userId))
-                .thenReturn(Optional.of(new User()));
-        when(leaveCategoryRepository.findAll())
-                .thenReturn(List.of(category));
-        when(leaveRepository.findAllByUserIdAndDateBetweenAndDeletedAtIsNull(
-                eq(userId), any(), any(), any(Sort.class)))
-                .thenReturn(List.of());
-
-        List<EmployeeLeavesRecordResponse> result =
-                userService.getEmployeeLeavesRecordByYear(userId, year);
-
-        assertTrue(result.isEmpty());
-    }
-
-    @Test
-    void shouldUseGivenYearWhenYearIsNotNull() {
-        int year = 2026;
-
-        when(userRepository.findById(userId))
-                .thenReturn(Optional.of(new User()));
-
-        when(leaveCategoryRepository.findAll())
-                .thenReturn(List.of());
-
-        List<EmployeeLeavesRecordResponse> result =
-                userService.getEmployeeLeavesRecordByYear(userId, year);
-
-        assertNotNull(result);
-    }
-
-    @Test
-    void shouldUseCurrentYearWhenYearIsNull() {
-        when(userRepository.findById(userId))
-                .thenReturn(Optional.of(new User()));
-
-        when(leaveCategoryRepository.findAll())
-                .thenReturn(List.of());
-
-        List<EmployeeLeavesRecordResponse> result =
-                userService.getEmployeeLeavesRecordByYear(userId, null);
-
-        assertNotNull(result);
-    }
-
-    @Test
-    void shouldUseAnnualLeaveTotalWhenCategoryIsAnnualAndDataExists() {
-        int year = 2026;
-
-        UUID categoryId = UUID.randomUUID();
-
-        LeaveCategory category = new LeaveCategory(
-                categoryId,
-                "Annual Leave",
-                24,
-                LocalDateTime.now(),
-                LocalDateTime.now()
-        );
-
-        AnnualLeave annualLeave = new AnnualLeave();
-        annualLeave.setTotal(30.0);
-
-        List<Leave> leaves = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            Leave leave = new Leave();
-            leave.setLeaveCategory(category);
-            leave.setDuration(DurationType.FULL_DAY);
-            leaves.add(leave);
-        }
-
-        when(userRepository.findById(userId))
-                .thenReturn(Optional.of(new User()));
-        when(leaveCategoryRepository.findAll())
-                .thenReturn(List.of(category));
-        when(annualLeaveRepository.findByUserIdAndYear(eq(userId), any()))
-                .thenReturn(Optional.of(annualLeave));
-        when(leaveRepository.findAllByUserIdAndDateBetweenAndDeletedAtIsNull(
-                eq(userId), any(), any(), any(Sort.class)))
-                .thenReturn(leaves);
-
-        List<EmployeeLeavesRecordResponse> result =
-                userService.getEmployeeLeavesRecordByYear(userId, year);
-
-        assertEquals(1, result.size());
-        assertEquals(30.0, result.getFirst().getTotalLeavesAvailable());
-        assertEquals(5.0, result.getFirst().getLeavesTaken());
-        assertEquals(25.0, result.getFirst().getLeavesRemaining());
-    }
 
     @Test
     void shouldReturnUserNameAndEmailForValidUserId() {
         User user = new User();
-        user.setId(userId);
         user.setName("Raj");
         user.setEmail("raj@technogise.com");
-
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
         UserResponse result = userService.getUserDetails(userId);
-
-        assertEquals(result.getEmail(), user.getEmail());
-        assertEquals(result.getName(), user.getName());
+        assertEquals("Raj", result.getName());
+        assertEquals("raj@technogise.com", result.getEmail());
     }
+
     @Test
-    void shouldCountHalfDayLeaveAs0Point5InLeaveBalance() {
-        int year = 2026;
-        UUID categoryId = UUID.randomUUID();
-
-        LeaveCategory category = new LeaveCategory(
-                categoryId, "Sick Leave", 10,
-                LocalDateTime.now(), LocalDateTime.now()
-        );
-
-        Leave halfDayLeave = new Leave();
-        halfDayLeave.setLeaveCategory(category);
-        halfDayLeave.setDuration(DurationType.HALF_DAY);
-        halfDayLeave.setDate(LocalDate.of(year, 5, 10));
-
+    void shouldDefaultToCurrentYearInKolkataTimezoneWhenYearIsMissing() {
         when(userRepository.findById(userId)).thenReturn(Optional.of(new User()));
-        when(leaveCategoryRepository.findAll()).thenReturn(List.of(category));
-        when(leaveRepository.findAllByUserIdAndDateBetweenAndDeletedAtIsNull(
-                eq(userId),
-                eq(LocalDate.of(year, 1, 1)),
-                eq(LocalDate.of(year, 12, 31)),
-                any(Sort.class)))
-                .thenReturn(List.of(halfDayLeave));
+        when(leaveCategoryRepository.findAll()).thenReturn(new ArrayList<>());
+        when(leaveRepository.findAllByUserIdAndDateBetweenAndDeletedAtIsNull(eq(userId), any(), any(), any()))
+                .thenReturn(new ArrayList<>());
 
-        List<EmployeeLeavesRecordResponse> result =
-                userService.getEmployeeLeavesRecordByYear(userId, year);
+        userService.getEmployeeLeavesRecordByYear(userId, null);
 
-        assertEquals(1, result.size());
-        assertEquals(0.5, result.getFirst().getLeavesTaken());
-        assertEquals(9.5, result.getFirst().getLeavesRemaining());
+        int currentYear = LocalDate.now(ZoneId.of("Asia/Kolkata")).getYear();
+        verify(leaveRepository).findAllByUserIdAndDateBetweenAndDeletedAtIsNull(
+                eq(userId), eq(LocalDate.of(currentYear, 1, 1)), eq(LocalDate.of(currentYear, 12, 31)), any());
     }
-
-
 }

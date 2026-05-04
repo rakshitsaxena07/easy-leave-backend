@@ -121,18 +121,23 @@ public class UserService {
                 userId, startDate, endDate, Sort.unsorted());
 
         Map<UUID, Double> leavesTakenByCategory = allLeaves.stream()
+                .filter(leave -> leave.getLeaveCategory() != null)
                 .collect(Collectors.groupingBy(
                         leave -> leave.getLeaveCategory().getId(),
                         Collectors.summingDouble(leave ->
                                 leave.getDuration() == DurationType.FULL_DAY ? 1.0 : 0.5)
                 ));
 
+        double optionalHolidaysTaken = allLeaves.stream()
+                .filter(leave -> leave.getHoliday() != null)
+                .mapToDouble(leave -> leave.getDuration() == DurationType.FULL_DAY ? 1.0 : 0.5)
+                .sum();
+
         List<LeaveCategory> leaveCategories = leaveCategoryRepository.findAll();
 
-        return leaveCategories.stream()
-                .filter(category -> leavesTakenByCategory.containsKey(category.getId()))
+        List<EmployeeLeavesRecordResponse> responses = leaveCategories.stream()
                 .map(category -> {
-                    double leavesTaken = leavesTakenByCategory.get(category.getId());
+                    double leavesTaken = leavesTakenByCategory.getOrDefault(category.getId(), 0.0);
                     double totalLeaves = category.getName().equalsIgnoreCase("Annual Leave")
                             ? annualLeave.map(AnnualLeave::getTotal).orElse(0.0)
                             : category.getAllocatedDays();
@@ -144,7 +149,17 @@ public class UserService {
                             .leavesRemaining(totalLeaves - leavesTaken)
                             .build();
                 })
-                .toList();
+                .collect(Collectors.toList());
+
+        responses.add(EmployeeLeavesRecordResponse.builder()
+                .leaveId(null)
+                .leaveType("Optional Holiday")
+                .leavesTaken(optionalHolidaysTaken)
+                .totalLeavesAvailable(2.0)
+                .leavesRemaining(2.0 - optionalHolidaysTaken)
+                .build());
+
+        return responses;
     }
 
     public UserResponse getUserDetails(UUID id) {
