@@ -284,4 +284,12 @@ class GoogleCalendarServiceTest {
 
         verify(leaveIntegrationEventRepository).findByLeaveIdAndPlatformAndDeletedAtIsNull(leave.getId(), PlatformType.GOOGLE_CALENDAR);
     }
+
+    @Test
+    void shouldSkipImplementationAndNotCallApiOnUpdateLeave() throws Exception {
+        googleCalendarService.updateLeave(leave);
+
+        verify(httpClient, never()).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        verify(leaveIntegrationEventRepository, never()).save(any());
+    }
 }
