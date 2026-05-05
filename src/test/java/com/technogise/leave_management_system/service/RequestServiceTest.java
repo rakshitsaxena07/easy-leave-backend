@@ -627,4 +627,24 @@ public class RequestServiceTest {
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
     }
+
+    @Test
+    void shouldThrowNotFoundWhenLeaveDoesNotExist() {
+        User manager = new User();
+        User employee = createValidUser();
+
+        Request request = new Request();
+        request.setId(UUID.randomUUID());
+        request.setRequestedByUser(employee);
+        request.setDate(LocalDate.now().minusDays(5));
+
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(leaveRepository.findByUserIdAndDate(employee.getId(), request.getDate()))
+                .thenReturn(Optional.empty());
+
+        HttpException ex = assertThrows(HttpException.class,
+                () -> requestService.actionRequest(manager, request.getId(), new ActionRequestPayload()));
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+    }
 }
