@@ -671,7 +671,7 @@ public class RequestServiceTest {
         when(requestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RequestResponse response =
-                requestService.actionRequest(manager, request.getId(), payload);
+                requestService.handleRequest(manager, request.getId(), payload);
 
         assertEquals(RequestStatus.APPROVED, response.getStatus());
         assertEquals("Approved", response.getManagerRemark());
@@ -688,7 +688,7 @@ public class RequestServiceTest {
         when(requestRepository.findById(requestId)).thenReturn(Optional.empty());
 
         HttpException ex = assertThrows(HttpException.class,
-                () -> requestService.actionRequest(new User(), requestId, new UpdateRequestPayload()));
+                () -> requestService.handleRequest(new User(), requestId, new UpdateRequestPayload()));
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
     }
@@ -708,7 +708,7 @@ public class RequestServiceTest {
                 .thenReturn(Optional.empty());
 
         HttpException ex = assertThrows(HttpException.class,
-                () -> requestService.actionRequest(manager, request.getId(), new UpdateRequestPayload()));
+                () -> requestService.handleRequest(manager, request.getId(), new UpdateRequestPayload()));
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
     }
@@ -733,7 +733,7 @@ public class RequestServiceTest {
         when(requestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RequestResponse response =
-                requestService.actionRequest(manager, request.getId(), payload);
+                requestService.handleRequest(manager, request.getId(), payload);
 
         assertNull(response.getManagerRemark());
     }
@@ -758,7 +758,7 @@ public class RequestServiceTest {
         when(requestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         RequestResponse response =
-                requestService.actionRequest(manager, request.getId(), payload);
+                requestService.handleRequest(manager, request.getId(), payload);
 
         assertNull(response.getManagerRemark());
     }

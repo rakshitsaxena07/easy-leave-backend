@@ -148,16 +148,20 @@ public class RequestService {
         );
     }
 
-    public RequestResponse actionRequest(User manager, UUID requestId, UpdateRequestPayload payload) {
+    public RequestResponse handleRequest(User manager, UUID requestId, UpdateRequestPayload payload) {
         Request request = requestRepository.findById(requestId).orElseThrow(
                 () -> new HttpException(HttpStatus.NOT_FOUND, "Request not found with Id: " + requestId));
 
-        Leave leave = leaveRepository
+        return handlePastLeaveRequest(request, manager, payload);
+    }
+
+    private RequestResponse handlePastLeaveRequest(Request request, User manager, UpdateRequestPayload payload) {
+        Leave existingLeave = leaveRepository
                 .findByUserIdAndDate(request.getRequestedByUser().getId(), request.getDate())
                 .orElseThrow(() -> new HttpException(HttpStatus.NOT_FOUND, "Leave not found"));
 
         UpdateLeaveRequest updateRequest = mapToUpdateLeaveRequest(request);
-        leaveService.updateLeave(leave.getId(), updateRequest, leave.getUser().getId());
+        leaveService.updateLeave(existingLeave.getId(), updateRequest, existingLeave.getUser().getId());
 
         request.setStatus(payload.getStatus());
         request.setActionedByManager(manager);
