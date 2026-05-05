@@ -617,13 +617,63 @@ public class RequestServiceTest {
     }
 
     @Test
+    void shouldApproveRequestAndUpdateLeaveAndReturnResponse() {
+        User manager = new User();
+        manager.setId(UUID.randomUUID());
+        manager.setName("Manager");
+        manager.setRole(UserRole.MANAGER);
+
+        User employee = createValidUser();
+        employee.setName("Employee");
+
+        LeaveCategory category = new LeaveCategory();
+        category.setId(UUID.randomUUID());
+        category.setName("Annual Leave");
+
+        Request request = new Request();
+        request.setId(UUID.randomUUID());
+        request.setRequestedByUser(employee);
+        request.setDate(LocalDate.now().minusDays(5));
+        request.setDuration(DurationType.FULL_DAY);
+        request.setRequestType(RequestType.PAST_LEAVE);
+        request.setStatus(RequestStatus.PENDING);
+        request.setCreatedAt(LocalDateTime.now());
+        request.setLeaveCategory(category);
+
+        Leave leave = new Leave();
+        leave.setId(UUID.randomUUID());
+        leave.setUser(employee);
+        leave.setDate(request.getDate());
+
+        UpdateRequestPayload payload = new UpdateRequestPayload();
+        payload.setStatus(RequestStatus.APPROVED);
+
+        when(requestRepository.findById(request.getId())).thenReturn(Optional.of(request));
+        when(leaveRepository.findByUserIdAndDate(employee.getId(), request.getDate()))
+                .thenReturn(Optional.of(leave));
+
+        when(leaveService.updateLeave(any(), any(), any()))
+                .thenReturn(new UpdateLeaveResponse());
+
+        when(requestRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        RequestResponse response = requestService.actionRequest(manager, request.getId(), payload);
+
+        assertEquals(payload.getStatus(), response.getStatus());
+        assertEquals(employee.getName(), response.getEmployeeName());
+
+        verify(leaveService).updateLeave(eq(leave.getId()), any(), eq(employee.getId()));
+        verify(requestRepository).save(request);
+    }
+
+    @Test
     void shouldThrowNotFoundWhenRequestDoesNotExist() {
         UUID requestId = UUID.randomUUID();
 
         when(requestRepository.findById(requestId)).thenReturn(Optional.empty());
 
         HttpException ex = assertThrows(HttpException.class,
-                () -> requestService.actionRequest(new User(), requestId, new ActionRequestPayload()));
+                () -> requestService.actionRequest(new User(), requestId, new UpdateRequestPayload()));
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
     }
@@ -643,7 +693,7 @@ public class RequestServiceTest {
                 .thenReturn(Optional.empty());
 
         HttpException ex = assertThrows(HttpException.class,
-                () -> requestService.actionRequest(manager, request.getId(), new ActionRequestPayload()));
+                () -> requestService.actionRequest(manager, request.getId(), new UpdateRequestPayload()));
 
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
     }

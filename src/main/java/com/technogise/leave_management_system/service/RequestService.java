@@ -4,7 +4,7 @@ import com.technogise.leave_management_system.dto.RequestResponse;
 import com.technogise.leave_management_system.dto.CreateRequestResponse;
 import com.technogise.leave_management_system.dto.CreateRequestPayload;
 import com.technogise.leave_management_system.dto.UpdateLeaveRequest;
-import com.technogise.leave_management_system.dto.ActionRequestPayload;
+import com.technogise.leave_management_system.dto.UpdateRequestPayload;
 import com.technogise.leave_management_system.entity.Leave;
 import com.technogise.leave_management_system.entity.LeaveCategory;
 import com.technogise.leave_management_system.entity.Request;
@@ -39,6 +39,7 @@ public class RequestService {
     private final UserService userService;
     private final LeaveCategoryService leaveCategoryService;
     private final LeaveRepository leaveRepository;
+    private final LeaveService leaveService;
 
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
@@ -46,12 +47,14 @@ public class RequestService {
     public RequestService(RequestRepository requestRepository,
                           UserService userService,
                           LeaveCategoryService leaveCategoryService,
-                          LeaveRepository leaveRepository
+                          LeaveRepository leaveRepository,
+                          LeaveService leaveService
     ) {
         this.requestRepository = requestRepository;
         this.userService = userService;
         this.leaveCategoryService = leaveCategoryService;
         this.leaveRepository = leaveRepository;
+        this.leaveService = leaveService;
     }
 
     private Page<Request> getRequestsForSelf(User user, RequestStatus status, Pageable pageable) {
@@ -134,7 +137,18 @@ public class RequestService {
         return savePastLeaveRequests(workingDays, payload, user, leaveCategory);
     }
 
-    public RequestResponse actionRequest(User manager, UUID requestId, ActionRequestPayload payload) {
+    private UpdateLeaveRequest mapToUpdateLeaveRequest(Request leave) {
+        return new UpdateLeaveRequest(
+                leave.getDate(),
+                leave.getStartTime(),
+                leave.getDescription(),
+                leave.getDuration(),
+                leave.getLeaveCategory().getId(),
+                "request"
+        );
+    }
+
+    public RequestResponse actionRequest(User manager, UUID requestId, UpdateRequestPayload payload) {
         Request request = requestRepository.findById(requestId).orElseThrow(
                 () -> new HttpException(HttpStatus.NOT_FOUND, "Request not found with Id: " + requestId));
 
@@ -142,7 +156,15 @@ public class RequestService {
                 .findByUserIdAndDate(request.getRequestedByUser().getId(), request.getDate())
                 .orElseThrow(() -> new HttpException(HttpStatus.NOT_FOUND, "Leave not found"));
 
-        return null;
+        UpdateLeaveRequest updateRequest = mapToUpdateLeaveRequest(request);
+        leaveService.updateLeave(leave.getId(), updateRequest, leave.getUser().getId());
+
+        request.setStatus(payload.getStatus());
+        request.setActionedByManager(manager);
+
+        Request savedRequest = requestRepository.save(request);
+
+        return mapToRequestResponse(savedRequest);
     }
 
     private List<CreateRequestResponse> raiseCompOffRequest(CreateRequestPayload payload, User user) {
