@@ -251,7 +251,7 @@ public class LeaveService {
         return leave.getHoliday().getType().getDisplayName();
     }
 
-    private void applyTypeChange(Leave leave, UpdateLeaveRequest request, UUID userId) {
+    private void applyTypeChange(Leave leave, UpdateLeaveRequest request, UUID userId, LeaveCategory targetCategory) {
         boolean requestHasHoliday = request.getHolidayId() != null;
         boolean requestHasCategory = request.getLeaveCategoryId() != null;
 
@@ -272,8 +272,7 @@ public class LeaveService {
         }
 
         if (requestHasCategory) {
-            leave.setLeaveCategory(
-                    leaveCategoryService.getLeaveCategoryById(request.getLeaveCategoryId()));
+            leave.setLeaveCategory(targetCategory);
             leave.setHoliday(null);
         }
     }
@@ -434,7 +433,7 @@ public class LeaveService {
 
         LeaveCategory targetCategory = (request.getLeaveCategoryId() != null)
                 ? leaveCategoryService.getLeaveCategoryById(request.getLeaveCategoryId())
-                : leave.getLeaveCategory();
+                : (request.getHolidayId() != null ? null : leave.getLeaveCategory());
 
         DurationType targetDuration = (request.getDuration() != null)
                 ? request.getDuration()
@@ -464,9 +463,8 @@ public class LeaveService {
             leave.setDate(request.getDate());
         }
 
-        applyTypeChange(leave, request, userId);
+        applyTypeChange(leave, request, userId, targetCategory);
 
-        leave.setLeaveCategory(targetCategory);
         leave.setDuration(targetDuration);
 
         Optional.ofNullable(request.getStartTime()).ifPresent(leave::setStartTime);
@@ -477,11 +475,7 @@ public class LeaveService {
         boolean typeChanged = request.getHolidayId() != null || request.getLeaveCategoryId() != null;
         boolean durationChanged = request.getDuration() != null;
 
-        if (typeChanged || durationChanged
-                || (oldCategoryName != null && oldCategoryName.equalsIgnoreCase(LeaveConstants.ANNUAL_LEAVE)) ||
-                (savedLeave.getLeaveCategory() != null
-                        && savedLeave.getLeaveCategory().getName().equalsIgnoreCase(LeaveConstants.ANNUAL_LEAVE))) {
-
+        if (shouldSyncAnnualLeave(oldCategoryName, savedLeave, typeChanged, durationChanged)) {
             String newCategoryName = savedLeave.getLeaveCategory() != null
                     ? savedLeave.getLeaveCategory().getName()
                     : null;
@@ -511,6 +505,13 @@ public class LeaveService {
         if (date.isBefore(thirtyDaysAgo) || date.isAfter(today) || date.equals(today)) {
             throw new HttpException(HttpStatus.BAD_REQUEST, "Date must be within the last 30 days excluding today");
         }
+    }
+
+    private boolean shouldSyncAnnualLeave(String oldCategoryName, Leave savedLeave, boolean typeChanged, boolean durationChanged) {
+        boolean oldWasAnnual = oldCategoryName != null && oldCategoryName.equalsIgnoreCase(LeaveConstants.ANNUAL_LEAVE);
+        boolean newIsAnnual = savedLeave.getLeaveCategory() != null
+                && savedLeave.getLeaveCategory().getName().equalsIgnoreCase(LeaveConstants.ANNUAL_LEAVE);
+        return typeChanged || durationChanged || oldWasAnnual || newIsAnnual;
     }
 
     public void validateUpdateRequestNotEmpty(UpdateLeaveRequest request) {
