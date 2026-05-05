@@ -1,8 +1,7 @@
 package com.technogise.leave_management_system.service;
 
-import com.technogise.leave_management_system.dto.RequestResponse;
-import com.technogise.leave_management_system.dto.CreateRequestPayload;
-import com.technogise.leave_management_system.dto.CreateRequestResponse;
+import com.technogise.leave_management_system.dto.*;
+import com.technogise.leave_management_system.entity.Leave;
 import com.technogise.leave_management_system.entity.LeaveCategory;
 import com.technogise.leave_management_system.entity.Request;
 import com.technogise.leave_management_system.entity.User;
@@ -30,6 +29,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -54,6 +54,9 @@ public class RequestServiceTest {
 
     @InjectMocks
     private RequestService requestService;
+
+    @Mock
+    private LeaveService leaveService;
 
     private User employee;
     private User manager;
@@ -611,5 +614,17 @@ public class RequestServiceTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         assertEquals("Compensatory off dates must fall on a weekend (Saturday or Sunday)", ex.getMessage());
+    }
+
+    @Test
+    void shouldThrowNotFoundWhenRequestDoesNotExist() {
+        UUID requestId = UUID.randomUUID();
+
+        when(requestRepository.findById(requestId)).thenReturn(Optional.empty());
+
+        HttpException ex = assertThrows(HttpException.class,
+                () -> requestService.actionRequest(new User(), requestId, new ActionRequestPayload()));
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
     }
 }

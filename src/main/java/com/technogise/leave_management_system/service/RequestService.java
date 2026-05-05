@@ -1,8 +1,9 @@
 package com.technogise.leave_management_system.service;
 
-import com.technogise.leave_management_system.dto.CreateRequestPayload;
-import com.technogise.leave_management_system.dto.CreateRequestResponse;
 import com.technogise.leave_management_system.dto.RequestResponse;
+import com.technogise.leave_management_system.dto.CreateRequestResponse;
+import com.technogise.leave_management_system.dto.CreateRequestPayload;
+import com.technogise.leave_management_system.dto.ActionRequestPayload;
 import com.technogise.leave_management_system.entity.LeaveCategory;
 import com.technogise.leave_management_system.entity.Request;
 import com.technogise.leave_management_system.entity.User;
@@ -12,6 +13,7 @@ import com.technogise.leave_management_system.enums.ScopeType;
 import com.technogise.leave_management_system.enums.UserRole;
 import com.technogise.leave_management_system.enums.WeekendDay;
 import com.technogise.leave_management_system.exception.HttpException;
+import com.technogise.leave_management_system.repository.LeaveRepository;
 import com.technogise.leave_management_system.repository.RequestRepository;
 
 import org.springframework.data.domain.Page;
@@ -40,7 +42,8 @@ public class RequestService {
 
     public RequestService(RequestRepository requestRepository,
                           UserService userService,
-                          LeaveCategoryService leaveCategoryService) {
+                          LeaveCategoryService leaveCategoryService
+    ) {
         this.requestRepository = requestRepository;
         this.userService = userService;
         this.leaveCategoryService = leaveCategoryService;
@@ -86,7 +89,8 @@ public class RequestService {
                 request.getDuration(),
                 request.getDescription(),
                 request.getStatus(),
-                request.getCreatedAt().toLocalDate()
+                request.getCreatedAt().toLocalDate(),
+                null
         );
     }
 
@@ -107,6 +111,7 @@ public class RequestService {
         }
         return requests.map(this::mapToRequestResponse);
     }
+
     @Transactional
     public List<CreateRequestResponse> raiseRequest(CreateRequestPayload payload, UUID userId) {
         User user = userService.getUserByUserId(userId);
@@ -122,6 +127,13 @@ public class RequestService {
         List<LocalDate> workingDays = filterWeekendDates(validDates);
         validateNoDuplicateRequests(workingDays, userId);
         return savePastLeaveRequests(workingDays, payload, user, leaveCategory);
+    }
+
+    public RequestResponse actionRequest(User manager, UUID requestId, ActionRequestPayload payload) {
+        Request request = requestRepository.findById(requestId).orElseThrow(
+                () -> new HttpException(HttpStatus.NOT_FOUND, "Request not found with Id: " + requestId));
+
+        return null;
     }
 
     private List<CreateRequestResponse> raiseCompOffRequest(CreateRequestPayload payload, User user) {
