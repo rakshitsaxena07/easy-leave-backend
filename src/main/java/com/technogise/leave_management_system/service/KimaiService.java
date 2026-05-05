@@ -180,4 +180,64 @@ public class KimaiService implements LeaveIntegrationService {
         }
         eventRepository.save(event);
     }
+
+    @Override
+    @Async
+    public void updateLeave(Leave leave) {
+        Optional<LeaveIntegrationEvent> previousEvent = eventRepository
+                .findByLeaveIdAndPlatformAndDeletedAtIsNull(leave.getId(), PlatformType.KIMAI);
+
+        if (previousEvent.isEmpty() || previousEvent.get().getExternalEventId() == null) {
+            log.warn("No Kimai ID found for update. Falling back to fresh sync for leaveId={}", leave.getId());
+            syncLeave(leave);
+            return;
+        }
+
+        String kimaiId = previousEvent.get().getExternalEventId();
+
+        LeaveIntegrationEvent updateEvent = new LeaveIntegrationEvent();
+        updateEvent.setLeave(leave);
+        updateEvent.setPlatform(PlatformType.KIMAI);
+        updateEvent.setOperationType(IntegrationOperationType.UPDATE);
+        updateEvent.setExternalEventId(kimaiId);
+        updateEvent.setAttempts(1);
+        updateEvent.setLastAttemptAt(LocalDateTime.now());
+
+        try {
+            Integer kimaiUserId = getUserIdByEmail(leave.getUser().getEmail(), leave.getUser().getName());
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(KimaiConstants.KIMAI_DATE_TIME_PATTERN);
+
+            LocalDateTime begin = LocalDateTime.of(leave.getDate(), leave.getStartTime());
+            LocalDateTime end = leave.getDuration() == DurationType.HALF_DAY
+                    ? begin.plusHours(KimaiConstants.HALF_DAY_HOURS)
+                    : begin.plusHours(KimaiConstants.FULL_DAY_HOURS);
+
+            KimaiCreateLeaveRequest updatePayload = KimaiCreateLeaveRequest.builder()
+                    .begin(begin.format(formatter))
+                    .end(end.format(formatter))
+                    .project(KimaiConstants.LEAVE_PROJECT_ID)
+                    .activity(KimaiConstants.ACTIVITY_MAPPING.get(leave.getLeaveCategory().getName()))
+                    .description(leave.getDescription())
+                    .user(kimaiUserId)
+                    .build();
+
+            webClient.patch()
+                    .uri("/api/timesheets/{id}", kimaiId)
+                    .bodyValue(updatePayload)
+                    .retrieve()
+                    .bodyToMono(Void.class)
+                    .block();
+
+            updateEvent.setStatus(IntegrationStatus.SUCCESS);
+            log.info("Successfully patched Kimai timesheet {} (New audit entry created)", kimaiId);
+
+        } catch (Exception e) {
+            updateEvent.setStatus(IntegrationStatus.FAILED);
+            updateEvent.setErrorMessage(e.getMessage());
+            log.error("Failed to update Kimai for leaveId={}: {}", leave.getId(), e.getMessage());
+        }
+
+        eventRepository.save(updateEvent);
+    }
+
 }
