@@ -166,7 +166,7 @@ public class GoogleCalendarService implements LeaveIntegrationService {
                             );
 
             if (googleCalendarEvent.isEmpty()) {
-                log.warn("No existing Google Calendar event found for leaveId={}", leave.getId());
+                log.warn("No existing Google Calendar event found for leaveId={} ", leave.getId());
                 integrationEvent.setStatus(IntegrationStatus.FAILED);
                 integrationEvent.setErrorMessage("No existing Google Calendar event found for leave " + leave.getId());
                 return;
