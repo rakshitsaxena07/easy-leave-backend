@@ -158,7 +158,10 @@ public class KimaiService implements LeaveIntegrationService {
 
         try {
             Optional<LeaveIntegrationEvent> kimaiEvent = eventRepository
-                    .findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(leave.getId(), PlatformType.KIMAI);
+                    .findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                            leave.getId(),
+                            PlatformType.KIMAI,
+                            IntegrationStatus.SUCCESS);
 
             if (kimaiEvent.isEmpty()) {
                 log.warn("No Kimai entry found for leave {}", leave.getId());
@@ -195,7 +198,10 @@ public class KimaiService implements LeaveIntegrationService {
     @Async
     public void updateLeave(Leave leave) {
         Optional<LeaveIntegrationEvent> previousEvent = eventRepository
-                .findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(leave.getId(), PlatformType.KIMAI);
+                .findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                        leave.getId(),
+                        PlatformType.KIMAI,
+                        IntegrationStatus.SUCCESS);
 
         if (previousEvent.isEmpty() || previousEvent.get().getExternalEventId() == null) {
             log.warn("No Kimai ID found for update. Attempting fresh sync for leaveId={}", leave.getId());

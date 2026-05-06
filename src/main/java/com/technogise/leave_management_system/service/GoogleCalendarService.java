@@ -169,7 +169,10 @@ public class GoogleCalendarService implements LeaveIntegrationService {
 
         try {
             Optional<LeaveIntegrationEvent> calendarEvent = leaveIntegrationEventRepository
-                    .findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(leave.getId(), PlatformType.GOOGLE_CALENDAR);
+                    .findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                            leave.getId(),
+                            PlatformType.GOOGLE_CALENDAR,
+                            IntegrationStatus.SUCCESS);
 
             if (calendarEvent.isEmpty() || calendarEvent.get().getExternalEventId() == null) {
                 log.warn("No Google Calendar entry found for leave {}", leave.getId());

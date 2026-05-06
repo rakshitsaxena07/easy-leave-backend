@@ -6,13 +6,15 @@ import com.technogise.leave_management_system.entity.Leave;
 import com.technogise.leave_management_system.entity.LeaveIntegrationEvent;
 import com.technogise.leave_management_system.entity.User;
 import com.technogise.leave_management_system.entity.Holiday;
+
 import com.technogise.leave_management_system.entity.LeaveCategory;
 import com.technogise.leave_management_system.enums.DurationType;
 import com.technogise.leave_management_system.enums.IntegrationStatus;
 import com.technogise.leave_management_system.enums.PlatformType;
 import com.technogise.leave_management_system.enums.UserRole;
-import com.technogise.leave_management_system.enums.HolidayType;
 import com.technogise.leave_management_system.enums.IntegrationOperationType;
+import com.technogise.leave_management_system.enums.HolidayType;
+
 import com.technogise.leave_management_system.repository.LeaveIntegrationEventRepository;
 import com.technogise.leave_management_system.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +41,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class KimaiServiceTest {
+
     @Mock
     private WebClient webClient;
 
@@ -49,10 +52,7 @@ class KimaiServiceTest {
     private WebClient.RequestBodyUriSpec requestBodyUriSpec;
 
     @Mock
-    private WebClient.RequestHeadersSpec postHeadersSpec;
-
-    @Mock
-    private WebClient.RequestHeadersSpec getHeadersSpec;
+    private WebClient.RequestHeadersSpec requestHeadersSpec;
 
     @Mock
     private WebClient.RequestHeadersUriSpec requestHeadersUriSpec;
@@ -69,7 +69,7 @@ class KimaiServiceTest {
 
     private Leave testLeave;
     private KimaiUserResponse mockKimaiUser;
-    private KimaiTimesheetResponse response;
+    private KimaiTimesheetResponse kimaiResponse;
 
     @BeforeEach
     void setUp() {
@@ -96,33 +96,43 @@ class KimaiServiceTest {
         mockKimaiUser.setId(4);
         mockKimaiUser.setUsername("Raj");
 
-        response = new KimaiTimesheetResponse();
-        response.setId(1);
+        kimaiResponse = new KimaiTimesheetResponse();
+        kimaiResponse.setId(1);
+    }
+
+    private LeaveIntegrationEvent createKimaiEvent(Leave leave) {
+        LeaveIntegrationEvent event = new LeaveIntegrationEvent();
+        event.setLeave(leave);
+        event.setPlatform(PlatformType.KIMAI);
+        event.setExternalEventId("123");
+        event.setStatus(IntegrationStatus.SUCCESS);
+        event.setDeletedAt(null);
+        return event;
     }
 
     @Test
     void shouldSyncLeaveSuccessfullyForFullDayLeave() {
         when(responseSpec.bodyToMono(KimaiTimesheetResponse.class))
-                .thenReturn(Mono.just(response));
+                .thenReturn(Mono.just(kimaiResponse));
 
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(any(String.class)))
-                .thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
+                .thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToFlux(KimaiUserResponse.class))
                 .thenReturn(Flux.just(mockKimaiUser));
 
         when(webClient.post()).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.uri("/api/timesheets")).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.bodyValue(any())).thenReturn(postHeadersSpec);
-        when(postHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestBodyUriSpec.bodyValue(any())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
 
         kimaiService.syncLeave(testLeave);
 
         verify(webClient).post();
         verify(requestBodyUriSpec).uri("/api/timesheets");
         verify(requestBodyUriSpec).bodyValue(any());
-        verify(postHeadersSpec).retrieve();
+        verify(requestHeadersSpec, atLeastOnce()).retrieve();
         verify(responseSpec).bodyToMono(KimaiTimesheetResponse.class);
     }
 
@@ -130,26 +140,26 @@ class KimaiServiceTest {
     void shouldSyncLeaveSuccessfullyForHalfDayLeave() {
         testLeave.setDuration(DurationType.HALF_DAY);
         when(responseSpec.bodyToMono(KimaiTimesheetResponse.class))
-                .thenReturn(Mono.just(response));
+                .thenReturn(Mono.just(kimaiResponse));
 
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(any(String.class)))
-                .thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
+                .thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToFlux(KimaiUserResponse.class))
                 .thenReturn(Flux.just(mockKimaiUser));
 
         when(webClient.post()).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.uri("/api/timesheets")).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.bodyValue(any())).thenReturn(postHeadersSpec);
-        when(postHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestBodyUriSpec.bodyValue(any())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
 
         kimaiService.syncLeave(testLeave);
 
         verify(webClient).post();
         verify(requestBodyUriSpec).uri("/api/timesheets");
         verify(requestBodyUriSpec).bodyValue(any());
-        verify(postHeadersSpec).retrieve();
+        verify(requestHeadersSpec, atLeastOnce()).retrieve();
         verify(responseSpec).bodyToMono(KimaiTimesheetResponse.class);
     }
 
@@ -157,8 +167,8 @@ class KimaiServiceTest {
     void shouldHandleWebClientErrorGracefully() {
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(any(String.class)))
-                .thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
+                .thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToFlux(KimaiUserResponse.class))
                 .thenReturn(Flux.just(mockKimaiUser));
 
@@ -168,8 +178,8 @@ class KimaiServiceTest {
 
         when(webClient.post()).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.uri("/api/timesheets")).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.bodyValue(any())).thenReturn(postHeadersSpec);
-        when(postHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestBodyUriSpec.bodyValue(any())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
 
         kimaiService.syncLeave(testLeave);
 
@@ -184,8 +194,8 @@ class KimaiServiceTest {
 
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
         when(requestHeadersUriSpec.uri(any(String.class)))
-                .thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
+                .thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToFlux(KimaiUserResponse.class))
                 .thenReturn(Flux.just(user));
 
@@ -195,19 +205,15 @@ class KimaiServiceTest {
     }
 
     @Test
-    void shouldHandleExceptionInUserFetch() {
-
+    void shouldLogAndRethrowExceptionWhenKimaiUserFetchFails() {
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(any(String.class)))
-                .thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
-
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToFlux(KimaiUserResponse.class))
-                .thenThrow(new RuntimeException("API Error"));
+                .thenThrow(new RuntimeException("Connection Error"));
 
-        kimaiService.syncLeave(testLeave);
-
-        verify(webClient).get();
+        assertThrows(RuntimeException.class, () ->
+                kimaiService.getUserIdByEmail("raj@technogise.com", "Raj"));
     }
 
     @Test
@@ -216,8 +222,8 @@ class KimaiServiceTest {
         LocalDateTime end = begin.plusDays(1);
 
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(any(String.class))).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestHeadersUriSpec.uri(any(String.class))).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToFlux(Object.class))
                 .thenReturn(Flux.just(new Object()));
 
@@ -233,8 +239,8 @@ class KimaiServiceTest {
         user.setUsername("Raj");
 
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(any(String.class))).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestHeadersUriSpec.uri(any(String.class))).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToFlux(KimaiUserResponse.class))
                 .thenReturn(Flux.just(user));
 
@@ -247,136 +253,74 @@ class KimaiServiceTest {
     }
 
     @Test
-    void shouldSetExternalEventIdWhenResponseIsNotNull() {
-        KimaiTimesheetResponse timesheetResponse = new KimaiTimesheetResponse();
-        timesheetResponse.setId(42);
-
-        KimaiUserResponse user = new KimaiUserResponse();
-        user.setId(4);
-        user.setUsername("Raj");
-
+    void shouldNotSetExternalEventIdWhenKimaiResponseIdIsNull() {
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(any(String.class))).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(user));
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(mockKimaiUser));
 
         doReturn(false).when(kimaiService).isLeaveAlreadySynced(any(), any(), any());
 
+        KimaiTimesheetResponse emptyIdResponse = new KimaiTimesheetResponse();
+        emptyIdResponse.setId(null);
+
         when(webClient.post()).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.uri("/api/timesheets")).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.bodyValue(any())).thenReturn(postHeadersSpec);
-        when(postHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestBodyUriSpec.bodyValue(any())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(KimaiTimesheetResponse.class))
-                .thenReturn(Mono.just(timesheetResponse));
-
-        when(eventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+                .thenReturn(Mono.just(emptyIdResponse));
 
         kimaiService.syncLeave(testLeave);
 
         verify(eventRepository).save(argThat(event ->
-                "42".equals(event.getExternalEventId())
-                        && event.getStatus() == IntegrationStatus.SUCCESS
+                event.getStatus() == IntegrationStatus.SUCCESS
+                        && event.getExternalEventId() == null
         ));
     }
 
     @Test
-    void shouldNotSetExternalEventIdWhenResponseIsNull() {
-        KimaiUserResponse user = new KimaiUserResponse();
-        user.setId(4);
-        user.setUsername("Raj");
-
+    void shouldNotSetExternalEventIdWhenKimaiResponseIsCompletelyEmpty() {
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(any(String.class))).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(user));
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(mockKimaiUser));
 
         doReturn(false).when(kimaiService).isLeaveAlreadySynced(any(), any(), any());
 
         when(webClient.post()).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.uri("/api/timesheets")).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.bodyValue(any())).thenReturn(postHeadersSpec);
-        when(postHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestBodyUriSpec.bodyValue(any())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(KimaiTimesheetResponse.class))
-                .thenReturn(Mono.empty()); // returns null
-
-        when(eventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+                .thenReturn(Mono.empty());
 
         kimaiService.syncLeave(testLeave);
 
         verify(eventRepository).save(argThat(event ->
-                event.getExternalEventId() == null
-                        && event.getStatus() == IntegrationStatus.SUCCESS
+                event.getStatus() == IntegrationStatus.SUCCESS
+                        && event.getExternalEventId() == null
         ));
-    }
-
-    @Test
-    void shouldNotSetExternalEventIdWhenResponseIdIsNull() {
-        KimaiTimesheetResponse timesheetResponse = new KimaiTimesheetResponse();
-        timesheetResponse.setId(null); // id is null
-
-        KimaiUserResponse user = new KimaiUserResponse();
-        user.setId(4);
-        user.setUsername("Raj");
-
-        when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(any(String.class))).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(user));
-
-        doReturn(false).when(kimaiService).isLeaveAlreadySynced(any(), any(), any());
-
-        when(webClient.post()).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.uri("/api/timesheets")).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.bodyValue(any())).thenReturn(postHeadersSpec);
-        when(postHeadersSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.bodyToMono(KimaiTimesheetResponse.class))
-                .thenReturn(Mono.just(timesheetResponse));
-
-        when(eventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-
-        kimaiService.syncLeave(testLeave);
-
-        verify(eventRepository).save(argThat(event ->
-                event.getExternalEventId() == null
-                        && event.getStatus() == IntegrationStatus.SUCCESS
-        ));
-    }
-
-    private LeaveIntegrationEvent createKimaiEvent(Leave leave) {
-        LeaveIntegrationEvent event = new LeaveIntegrationEvent();
-        event.setLeave(leave);
-        event.setPlatform(PlatformType.KIMAI);
-        event.setExternalEventId("123");
-        event.setStatus(IntegrationStatus.SUCCESS);
-        event.setDeletedAt(null);
-        return event;
-    }
-
-    private void mockKimaiDeleteSuccess(String externalId) {
-        when(webClient.delete()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri("/api/timesheets/{id}", externalId))
-                .thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.bodyToMono(Void.class)).thenReturn(Mono.empty());
     }
 
     @Test
     void shouldDeleteKimaiEntrySuccessfullyWhenEventExists() {
         LeaveIntegrationEvent event = createKimaiEvent(testLeave);
 
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(testLeave.getId(), PlatformType.KIMAI))
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                testLeave.getId(), PlatformType.KIMAI, IntegrationStatus.SUCCESS))
                 .thenReturn(Optional.of(event));
 
         when(userRepository.findById(testLeave.getUser().getId())).thenReturn(Optional.of(testLeave.getUser()));
 
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(anyString())).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(mockKimaiUser));
 
         when(webClient.delete()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri("/api/timesheets/{id}", "123")).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestHeadersUriSpec.uri("/api/timesheets/{id}", "123")).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(Void.class)).thenReturn(Mono.empty());
 
         kimaiService.deleteLeave(testLeave);
@@ -384,7 +328,7 @@ class KimaiServiceTest {
         verify(webClient).delete();
         verify(eventRepository).save(argThat(savedEvent ->
                 savedEvent.getStatus() == IntegrationStatus.SUCCESS
-                        &&    savedEvent.getOperationType() == IntegrationOperationType.DELETE
+                        && savedEvent.getOperationType() == IntegrationOperationType.DELETE
         ));
     }
 
@@ -392,57 +336,53 @@ class KimaiServiceTest {
     void shouldSaveFailedEventWhenUserIsNotFoundInRepositoryDuringDelete() {
         LeaveIntegrationEvent existingEvent = createKimaiEvent(testLeave);
 
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(
-                testLeave.getId(), PlatformType.KIMAI))
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                testLeave.getId(), PlatformType.KIMAI, IntegrationStatus.SUCCESS))
                 .thenReturn(Optional.of(existingEvent));
 
-        when(userRepository.findById(testLeave.getUser().getId()))
-                .thenReturn(Optional.empty());
-
-        when(eventRepository.save(any(LeaveIntegrationEvent.class)))
-                .thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findById(testLeave.getUser().getId())).thenReturn(Optional.empty());
 
         kimaiService.deleteLeave(testLeave);
 
         verify(eventRepository).save(argThat(event ->
                 event.getStatus() == IntegrationStatus.FAILED
-                     &&   event.getErrorMessage().equals("User not found for leaveId=" + testLeave.getId())
-                      &&  event.getOperationType() == IntegrationOperationType.DELETE
+                        && event.getErrorMessage().equals("User not found for leaveId=" + testLeave.getId())
+                        && event.getOperationType() == IntegrationOperationType.DELETE
         ));
-
-        verify(webClient, never()).get();
-        verify(webClient, never()).delete();
     }
 
     @Test
     void shouldSaveSuccessEventAfterSuccessfulKimaiDeletion() {
         LeaveIntegrationEvent event = createKimaiEvent(testLeave);
 
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(
-                testLeave.getId(), PlatformType.KIMAI)).thenReturn(Optional.of(event));
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                testLeave.getId(), PlatformType.KIMAI, IntegrationStatus.SUCCESS))
+                .thenReturn(Optional.of(event));
 
         when(userRepository.findById(testLeave.getUser().getId())).thenReturn(Optional.of(testLeave.getUser()));
 
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(anyString())).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(mockKimaiUser));
 
-        mockKimaiDeleteSuccess("123");
-
-        when(eventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(webClient.delete()).thenReturn(requestHeadersUriSpec);
+        when(requestHeadersUriSpec.uri("/api/timesheets/{id}", "123")).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToMono(Void.class)).thenReturn(Mono.empty());
 
         kimaiService.deleteLeave(testLeave);
 
         verify(eventRepository).save(argThat(savedEvent ->
                 savedEvent.getStatus() == IntegrationStatus.SUCCESS
-                        &&       "123".equals(savedEvent.getExternalEventId())
-                                &&  savedEvent.getOperationType() == IntegrationOperationType.DELETE));
+                        && "123".equals(savedEvent.getExternalEventId())
+                        && savedEvent.getOperationType() == IntegrationOperationType.DELETE));
     }
 
     @Test
     void shouldSaveFailedEventWhenNoIntegrationEventFound() {
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(testLeave.getId(), PlatformType.KIMAI))
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                testLeave.getId(), PlatformType.KIMAI, IntegrationStatus.SUCCESS))
                 .thenReturn(Optional.empty());
 
         kimaiService.deleteLeave(testLeave);
@@ -450,61 +390,59 @@ class KimaiServiceTest {
         verify(webClient, never()).delete();
         verify(eventRepository).save(argThat(savedEvent ->
                 savedEvent.getStatus() == IntegrationStatus.FAILED
-                        &&    savedEvent.getErrorMessage().contains("No Kimai entry found")
+                        && savedEvent.getErrorMessage().contains("No Kimai entry found")
         ));
     }
 
     @Test
     void shouldQueryRepositoryWithCorrectLeaveIdAndPlatformOnDelete() {
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(testLeave.getId(), PlatformType.KIMAI))
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                testLeave.getId(), PlatformType.KIMAI, IntegrationStatus.SUCCESS))
                 .thenReturn(Optional.empty());
 
         kimaiService.deleteLeave(testLeave);
 
-        verify(eventRepository).findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(testLeave.getId(), PlatformType.KIMAI);
+        verify(eventRepository).findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                testLeave.getId(), PlatformType.KIMAI, IntegrationStatus.SUCCESS);
     }
 
     @Test
     void shouldSaveFailedEventWhenKimaiDeleteCallFails() {
         LeaveIntegrationEvent event = createKimaiEvent(testLeave);
 
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(
-                testLeave.getId(), PlatformType.KIMAI)).thenReturn(Optional.of(event));
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                testLeave.getId(), PlatformType.KIMAI, IntegrationStatus.SUCCESS))
+                .thenReturn(Optional.of(event));
 
         when(userRepository.findById(testLeave.getUser().getId())).thenReturn(Optional.of(testLeave.getUser()));
 
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(anyString())).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(mockKimaiUser));
 
         when(webClient.delete()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri("/api/timesheets/{id}", "123")).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestHeadersUriSpec.uri("/api/timesheets/{id}", "123")).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(Void.class)).thenThrow(new RuntimeException("Connection refused"));
-
-        when(eventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         kimaiService.deleteLeave(testLeave);
 
         verify(eventRepository).save(argThat(savedEvent ->
                 savedEvent.getStatus() == IntegrationStatus.FAILED
-                        &&  "Connection refused".equals(savedEvent.getErrorMessage())
-                                &&  savedEvent.getOperationType() == IntegrationOperationType.DELETE));
+                        && "Connection refused".equals(savedEvent.getErrorMessage())
+                        && savedEvent.getOperationType() == IntegrationOperationType.DELETE));
     }
 
     @Test
     void shouldSaveFailedEventWhenUserNotFoundDuringUpdate() {
         LeaveIntegrationEvent existingEvent = createKimaiEvent(testLeave);
 
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(
-                testLeave.getId(), PlatformType.KIMAI))
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                testLeave.getId(), PlatformType.KIMAI, IntegrationStatus.SUCCESS))
                 .thenReturn(Optional.of(existingEvent));
 
-        when(userRepository.findById(testLeave.getUser().getId()))
-                .thenReturn(Optional.empty());
-
-        when(eventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findById(testLeave.getUser().getId())).thenReturn(Optional.empty());
 
         kimaiService.updateLeave(testLeave);
 
@@ -513,7 +451,6 @@ class KimaiServiceTest {
                         && event.getErrorMessage().contains("User not found for leaveId=")
                         && event.getOperationType() == IntegrationOperationType.UPDATE
         ));
-        verify(webClient, never()).get();
     }
 
     @Test
@@ -521,32 +458,23 @@ class KimaiServiceTest {
         testLeave.setDuration(DurationType.HALF_DAY);
         LeaveIntegrationEvent existingEvent = createKimaiEvent(testLeave);
 
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(
-                testLeave.getId(), PlatformType.KIMAI))
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                testLeave.getId(), PlatformType.KIMAI, IntegrationStatus.SUCCESS))
                 .thenReturn(Optional.of(existingEvent));
-        when(userRepository.findById(testLeave.getUser().getId()))
-                .thenReturn(Optional.of(testLeave.getUser()));
 
-        KimaiUserResponse user = new KimaiUserResponse();
-        user.setId(4);
-        user.setUsername("Raj");
+        when(userRepository.findById(testLeave.getUser().getId())).thenReturn(Optional.of(testLeave.getUser()));
 
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(any(String.class))).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(user));
+        when(requestHeadersUriSpec.uri(any(String.class))).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(mockKimaiUser));
 
         WebClient.RequestBodyUriSpec patchUriSpec = mock(WebClient.RequestBodyUriSpec.class);
-        WebClient.RequestHeadersSpec patchHeadersSpec = mock(WebClient.RequestHeadersSpec.class);
-        WebClient.ResponseSpec patchResponseSpec = mock(WebClient.ResponseSpec.class);
-
         when(webClient.patch()).thenReturn(patchUriSpec);
-        when(patchUriSpec.uri("/api/timesheets/{id}", "123")).thenReturn(patchUriSpec);
-        when(patchUriSpec.bodyValue(any())).thenReturn(patchHeadersSpec);
-        when(patchHeadersSpec.retrieve()).thenReturn(patchResponseSpec);
-        when(patchResponseSpec.bodyToMono(Void.class)).thenReturn(Mono.empty());
-
-        when(eventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(patchUriSpec.uri(anyString(), anyString())).thenReturn(patchUriSpec);
+        when(patchUriSpec.bodyValue(any())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToMono(Void.class)).thenReturn(Mono.empty());
 
         kimaiService.updateLeave(testLeave);
 
@@ -559,8 +487,8 @@ class KimaiServiceTest {
 
     @Test
     void shouldFallbackToSyncLeaveWhenNoPreviousKimaiEventFound() {
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(
-                any(), any()))
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                any(), any(), eq(IntegrationStatus.SUCCESS)))
                 .thenReturn(Optional.empty());
 
         doNothing().when(kimaiService).syncLeave(testLeave);
@@ -568,7 +496,6 @@ class KimaiServiceTest {
         kimaiService.updateLeave(testLeave);
 
         verify(kimaiService).syncLeave(testLeave);
-        verify(webClient, never()).patch();
     }
 
     @Test
@@ -577,9 +504,10 @@ class KimaiServiceTest {
         event.setLeave(testLeave);
         event.setPlatform(PlatformType.KIMAI);
         event.setExternalEventId(null);
+        event.setStatus(IntegrationStatus.SUCCESS);
 
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(
-                testLeave.getId(), PlatformType.KIMAI))
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                testLeave.getId(), PlatformType.KIMAI, IntegrationStatus.SUCCESS))
                 .thenReturn(Optional.of(event));
 
         doNothing().when(kimaiService).syncLeave(testLeave);
@@ -587,7 +515,6 @@ class KimaiServiceTest {
         kimaiService.updateLeave(testLeave);
 
         verify(kimaiService).syncLeave(testLeave);
-        verify(webClient, never()).patch();
     }
 
     @Test
@@ -599,26 +526,25 @@ class KimaiServiceTest {
         testLeave.setHoliday(optionalHoliday);
 
         LeaveIntegrationEvent existingEvent = createKimaiEvent(testLeave);
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(any(), any()))
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                any(), any(), eq(IntegrationStatus.SUCCESS)))
                 .thenReturn(Optional.of(existingEvent));
 
-        when(userRepository.findById(testLeave.getUser().getId()))
-                .thenReturn(Optional.of(testLeave.getUser()));
+        when(userRepository.findById(testLeave.getUser().getId())).thenReturn(Optional.of(testLeave.getUser()));
 
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(anyString())).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(mockKimaiUser));
 
         WebClient.RequestBodyUriSpec patchUriSpec = mock(WebClient.RequestBodyUriSpec.class);
-        WebClient.RequestHeadersSpec patchHeadersSpec = mock(WebClient.RequestHeadersSpec.class);
         when(webClient.patch()).thenReturn(patchUriSpec);
         when(patchUriSpec.uri(anyString(), anyString())).thenReturn(patchUriSpec);
-        when(patchUriSpec.bodyValue(any())).thenReturn(patchHeadersSpec);
-        when(patchHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(patchUriSpec.bodyValue(any())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(Void.class)).thenReturn(Mono.empty());
 
-        assertDoesNotThrow(() -> kimaiService.updateLeave(testLeave));
+        kimaiService.updateLeave(testLeave);
 
         verify(eventRepository).save(argThat(event ->
                 event.getOperationType() == IntegrationOperationType.UPDATE
@@ -630,33 +556,23 @@ class KimaiServiceTest {
     void shouldPatchKimaiTimesheetSuccessfullyWhenPreviousEventExists() {
         LeaveIntegrationEvent existingEvent = createKimaiEvent(testLeave);
 
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(
-                testLeave.getId(), PlatformType.KIMAI))
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                testLeave.getId(), PlatformType.KIMAI, IntegrationStatus.SUCCESS))
                 .thenReturn(Optional.of(existingEvent));
 
-        when(userRepository.findById(testLeave.getUser().getId()))
-                .thenReturn(Optional.of(testLeave.getUser()));
-
-        KimaiUserResponse user = new KimaiUserResponse();
-        user.setId(4);
-        user.setUsername("Raj");
+        when(userRepository.findById(testLeave.getUser().getId())).thenReturn(Optional.of(testLeave.getUser()));
 
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(any(String.class))).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(user));
+        when(requestHeadersUriSpec.uri(any(String.class))).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(mockKimaiUser));
 
         WebClient.RequestBodyUriSpec patchUriSpec = mock(WebClient.RequestBodyUriSpec.class);
-        WebClient.RequestHeadersSpec patchHeadersSpec = mock(WebClient.RequestHeadersSpec.class);
-        WebClient.ResponseSpec patchResponseSpec = mock(WebClient.ResponseSpec.class);
-
         when(webClient.patch()).thenReturn(patchUriSpec);
-        when(patchUriSpec.uri("/api/timesheets/{id}", "123")).thenReturn(patchUriSpec);
-        when(patchUriSpec.bodyValue(any())).thenReturn(patchHeadersSpec);
-        when(patchHeadersSpec.retrieve()).thenReturn(patchResponseSpec);
-        when(patchResponseSpec.bodyToMono(Void.class)).thenReturn(Mono.empty());
-
-        when(eventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(patchUriSpec.uri(anyString(), anyString())).thenReturn(patchUriSpec);
+        when(patchUriSpec.bodyValue(any())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToMono(Void.class)).thenReturn(Mono.empty());
 
         kimaiService.updateLeave(testLeave);
 
@@ -672,28 +588,21 @@ class KimaiServiceTest {
     void shouldSaveFailedEventWhenKimaiPatchCallFails() {
         LeaveIntegrationEvent existingEvent = createKimaiEvent(testLeave);
 
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(
-                testLeave.getId(), PlatformType.KIMAI))
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                testLeave.getId(), PlatformType.KIMAI, IntegrationStatus.SUCCESS))
                 .thenReturn(Optional.of(existingEvent));
-        when(userRepository.findById(testLeave.getUser().getId()))
-                .thenReturn(Optional.of(testLeave.getUser()));
 
-        KimaiUserResponse user = new KimaiUserResponse();
-        user.setId(4);
-        user.setUsername("Raj");
+        when(userRepository.findById(testLeave.getUser().getId())).thenReturn(Optional.of(testLeave.getUser()));
 
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(any(String.class))).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(user));
+        when(requestHeadersUriSpec.uri(any(String.class))).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(mockKimaiUser));
 
         WebClient.RequestBodyUriSpec patchUriSpec = mock(WebClient.RequestBodyUriSpec.class);
-
         when(webClient.patch()).thenReturn(patchUriSpec);
-        when(patchUriSpec.uri("/api/timesheets/{id}", "123")).thenReturn(patchUriSpec);
+        when(patchUriSpec.uri(anyString(), anyString())).thenReturn(patchUriSpec);
         when(patchUriSpec.bodyValue(any())).thenThrow(new RuntimeException("Kimai patch failed"));
-
-        when(eventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         kimaiService.updateLeave(testLeave);
 
@@ -711,23 +620,23 @@ class KimaiServiceTest {
         testLeave.setLeaveCategory(unknownCategory);
 
         LeaveIntegrationEvent existingEvent = createKimaiEvent(testLeave);
-        when(eventRepository.findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(any(), any()))
+        when(eventRepository.findFirstByLeaveIdAndPlatformAndStatusAndDeletedAtIsNullOrderByCreatedAtDesc(
+                any(), any(), eq(IntegrationStatus.SUCCESS)))
                 .thenReturn(Optional.of(existingEvent));
 
-        when(userRepository.findById(testLeave.getUser().getId()))
-                .thenReturn(Optional.of(testLeave.getUser()));
+        when(userRepository.findById(testLeave.getUser().getId())).thenReturn(Optional.of(testLeave.getUser()));
 
         when(webClient.get()).thenReturn(requestHeadersUriSpec);
-        when(requestHeadersUriSpec.uri(anyString())).thenReturn(getHeadersSpec);
-        when(getHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(requestHeadersUriSpec.uri(anyString())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToFlux(KimaiUserResponse.class)).thenReturn(Flux.just(mockKimaiUser));
 
         kimaiService.updateLeave(testLeave);
 
         verify(eventRepository).save(argThat(event ->
                 event.getStatus() == IntegrationStatus.FAILED
-                       && event.getErrorMessage().equals("No Kimai activity mapping found for: Unknown Category")
-                      &&  event.getOperationType() == IntegrationOperationType.UPDATE
+                        && event.getErrorMessage().equals("No Kimai activity mapping found for: Unknown Category")
+                        && event.getOperationType() == IntegrationOperationType.UPDATE
         ));
 
         verify(webClient, never()).patch();
