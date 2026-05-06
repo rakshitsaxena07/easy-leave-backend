@@ -173,8 +173,6 @@ public class GoogleCalendarService implements LeaveIntegrationService {
             }
 
             String googleCalendarEventId = googleCalendarEvent.get().getExternalEventId();
-            int previousAttempts = googleCalendarEvent.get().getAttempts();
-            integrationEvent.setAttempts(previousAttempts + 1);
 
             String encodedCalendarId = java.net.URLEncoder.encode(calendarId, "UTF-8");
             String url = calendarApiBase + encodedCalendarId + "/events/" + googleCalendarEventId;
