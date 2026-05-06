@@ -161,7 +161,7 @@ public class RequestService {
         validateRequestStatus(request);
 
         if (payload.getStatus() == RequestStatus.REJECTED) {
-            return finalRequestDecision(request, manager, payload);
+            return finalizeRequest(request, manager, payload);
         }
 
         if (request.getRequestType() == RequestType.PAST_LEAVE) {
@@ -192,7 +192,7 @@ public class RequestService {
         UpdateLeaveRequest updateRequest = mapToUpdateLeaveRequest(request);
         leaveService.updateLeave(existingLeave.getId(), updateRequest, existingLeave.getUser().getId());
 
-        return finalRequestDecision(request, manager, payload);
+        return finalizeRequest(request, manager, payload);
     }
 
     private RequestResponse handleCompOffRequest(Request request, User manager, UpdateRequestPayload payload) {
@@ -209,10 +209,10 @@ public class RequestService {
         annualLeave.setCompensatoryOffCount(updatedCount);
         annualLeaveRepository.save(annualLeave);
 
-        return finalRequestDecision(request, manager, payload);
+        return finalizeRequest(request, manager, payload);
     }
 
-    private RequestResponse finalRequestDecision(Request request, User manager, UpdateRequestPayload payload) {
+    private RequestResponse finalizeRequest(Request request, User manager, UpdateRequestPayload payload) {
         request.setStatus(payload.getStatus());
         request.setActionedByManager(manager);
 
