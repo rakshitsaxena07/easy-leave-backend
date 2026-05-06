@@ -1911,7 +1911,7 @@ class LeaveServiceTest {
                 () -> leaveService.validateNewRequestLeaveDate(invalidDate));
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
-        assertEquals("Date must be within the last 30 days", ex.getMessage());
+        assertEquals("Date must be within the last 30 days excluding today", ex.getMessage());
     }
 
     @Test
@@ -1922,7 +1922,7 @@ class LeaveServiceTest {
                 () -> leaveService.validateNewRequestLeaveDate(invalidDate));
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
-        assertEquals("Date must be within the last 30 days", ex.getMessage());
+        assertEquals("Date must be within the last 30 days excluding today", ex.getMessage());
     }
 
     @Test
