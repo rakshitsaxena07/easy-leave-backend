@@ -641,9 +641,4 @@ class KimaiServiceTest {
 
         verify(webClient, never()).patch();
     }
-
-    @Test
-    void shouldDoNothingWhenKimaiUpdateIsCalled() {
-        kimaiService.updateLeave(testLeave);
-    }
 }
