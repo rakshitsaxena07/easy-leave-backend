@@ -154,9 +154,11 @@ public class KimaiService implements LeaveIntegrationService {
         event.setPlatform(PlatformType.KIMAI);
         event.setAttempts(1);
         event.setLastAttemptAt(LocalDateTime.now());
+        event.setOperationType(IntegrationOperationType.DELETE);
 
         try {
-            Optional<LeaveIntegrationEvent> kimaiEvent = eventRepository.findByLeaveIdAndPlatformAndDeletedAtIsNull(leave.getId(), PlatformType.KIMAI);
+            Optional<LeaveIntegrationEvent> kimaiEvent = eventRepository
+                    .findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(leave.getId(), PlatformType.KIMAI);
 
             if (kimaiEvent.isEmpty()) {
                 log.warn("No Kimai entry found for leave {}", leave.getId());
@@ -168,20 +170,23 @@ public class KimaiService implements LeaveIntegrationService {
 
             String kimaiId = kimaiEvent.get().getExternalEventId();
 
+            User user = userRepository.findById(leave.getUser().getId())
+                    .orElseThrow(() -> new RuntimeException(
+                            "User not found for leaveId=" + leave.getId()));
+
+            String kimaiUserId = String.valueOf(getUserIdByEmail(user.getEmail(), user.getName()));
+
             webClient.delete().uri("/api/timesheets/{id}", kimaiId).retrieve().bodyToMono(Void.class).block();
 
             event.setExternalEventId(kimaiId);
             event.setStatus(IntegrationStatus.SUCCESS);
             event.setErrorMessage(null);
-            event.setOperationType(IntegrationOperationType.DELETE);
 
             log.info("Successfully deleted Kimai entry {} for leave {}", kimaiId, leave.getId());
         } catch (Exception e) {
             log.error("Error deleting Kimai entry for leave {}: {}", leave.getId(), e.getMessage());
-
             event.setStatus(IntegrationStatus.FAILED);
             event.setErrorMessage(e.getMessage());
-            event.setOperationType(IntegrationOperationType.DELETE);
         }
         eventRepository.save(event);
     }

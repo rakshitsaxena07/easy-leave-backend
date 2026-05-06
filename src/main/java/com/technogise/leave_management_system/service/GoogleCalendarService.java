@@ -169,9 +169,9 @@ public class GoogleCalendarService implements LeaveIntegrationService {
 
         try {
             Optional<LeaveIntegrationEvent> calendarEvent = leaveIntegrationEventRepository
-                    .findByLeaveIdAndPlatformAndDeletedAtIsNull(leave.getId(), PlatformType.GOOGLE_CALENDAR);
+                    .findFirstByLeaveIdAndPlatformAndDeletedAtIsNullOrderByCreatedAtDesc(leave.getId(), PlatformType.GOOGLE_CALENDAR);
 
-            if (calendarEvent.isEmpty()) {
+            if (calendarEvent.isEmpty() || calendarEvent.get().getExternalEventId() == null) {
                 log.warn("No Google Calendar entry found for leave {}", leave.getId());
                 integrationEvent.setStatus(IntegrationStatus.FAILED);
                 integrationEvent.setErrorMessage("No Google Calendar entry found for leave " + leave.getId());
@@ -179,11 +179,12 @@ public class GoogleCalendarService implements LeaveIntegrationService {
                 return;
             }
 
+            User user = userRepository.findById(leave.getUser().getId())
+                    .orElseThrow(() -> new RuntimeException("User not found for leaveId=" + leave.getId()));
+
             String externalEventId = calendarEvent.get().getExternalEventId();
             String encodedCalendarId = java.net.URLEncoder.encode(calendarId, "UTF-8");
             String url = calendarApiBase + encodedCalendarId + "/events/" + externalEventId;
-
-            User user = leave.getUser();
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
