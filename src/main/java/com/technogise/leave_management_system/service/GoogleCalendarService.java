@@ -280,12 +280,6 @@ public class GoogleCalendarService implements LeaveIntegrationService {
     @Async
     @Override
     public void updateLeave(Leave leave) {
-        log.info("Google Calendar update triggered for leaveId={}, skipping implementation.", leave.getId());
-    }
-
-    @Async
-    @Override
-    public void updateLeave(Leave leave) {
         User user = leave.getUser();
         String title = user.getName() + " - " + leave.getLeaveCategory().getName();
         String description = leave.getDescription();
